@@ -26,6 +26,7 @@ build/
 *.test
 coverage.out
 .coverprofile
+gloss
 
 # Go workspace / vendor (only if used later)
 vendor/
