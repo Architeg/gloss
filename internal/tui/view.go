@@ -44,6 +44,8 @@ func (m *Model) mainBlock(width int) string {
 		return m.commandsMainView(width)
 	case ScreenAdd:
 		return m.addFormView(width)
+	case ScreenScan:
+		return m.scanView(width)
 	default:
 		return m.placeholderView(width)
 	}
@@ -112,6 +114,17 @@ func (m *Model) footerContent() string {
 			{key: "Esc", label: "Cancel"},
 			{key: "Tab", label: "Field"},
 			{key: "^S", label: "Save"},
+			{key: "Q", label: "Quit"},
+		})
+	case ScreenScan:
+		return m.renderFooter([]footPart{
+			{key: "↑↓", label: "Move"},
+			{key: "Space", label: "Toggle"},
+			{key: "Enter", label: "Import"},
+			{key: "R", label: "Rescan"},
+			{key: "A", label: "All"},
+			{key: "C", label: "Clear"},
+			{key: "Esc", label: "Back"},
 			{key: "Q", label: "Quit"},
 		})
 	case ScreenCommands:

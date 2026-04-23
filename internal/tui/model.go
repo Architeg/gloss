@@ -2,6 +2,7 @@ package tui
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -48,6 +49,14 @@ type Model struct {
 	editFromBrowse            bool
 	deleteFromBrowse          bool
 	returnToCommandsAfterForm bool
+
+	scanLoading         bool
+	scanSources         []string
+	scanRows            []model.ScanSuggestion
+	scanCursor          int
+	scanSkippedExisting int
+	scanSkippedPaths    []string
+	scanStatus          string
 }
 
 // New returns the initial TUI model.
@@ -128,6 +137,43 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.cmdPhase = commandsBrowse
 		m.deleteReset()
 		return m, loadEntriesCmd(m.repo)
+
+	case scanMsg:
+		m.scanLoading = false
+		if msg.err != nil {
+			m.errBanner = msg.err.Error()
+			m.scanRows = nil
+			m.scanSources = nil
+			return m, nil
+		}
+		m.errBanner = ""
+		m.scanSources = append([]string(nil), msg.sources...)
+		m.scanRows = append([]model.ScanSuggestion(nil), msg.suggestions...)
+		m.scanSkippedExisting = msg.skippedExisting
+		m.scanSkippedPaths = append([]string(nil), msg.skippedPaths...)
+		m.scanStatus = ""
+		if m.scanCursor >= len(m.scanRows) {
+			if len(m.scanRows) == 0 {
+				m.scanCursor = 0
+			} else {
+				m.scanCursor = len(m.scanRows) - 1
+			}
+		}
+		return m, nil
+
+	case importScanMsg:
+		switch {
+		case msg.imported > 0:
+			m.errBanner = ""
+			m.scanStatus = fmt.Sprintf("Imported %d", msg.imported)
+		case msg.err != nil:
+			m.errBanner = msg.err.Error()
+			m.scanStatus = ""
+		default:
+			m.errBanner = ""
+			m.scanStatus = "Nothing imported (no rows selected)"
+		}
+		return m, tea.Batch(loadEntriesCmd(m.repo), runScanCmd(m.config, m.repo))
 	}
 
 	switch m.screen {
@@ -137,6 +183,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateCommands(msg)
 	case ScreenAdd:
 		return m.updateAddScreen(msg)
+	case ScreenScan:
+		return m.updateScan(msg)
 	default:
 		return m.updatePlaceholder(msg)
 	}
@@ -248,6 +296,66 @@ func (m *Model) updateHome(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.tagTI.SetValue("")
 			m.rebuildBrowse()
 			return m, loadEntriesCmd(m.repo)
+		case ScreenScan:
+			m.errBanner = ""
+			m.scanStatus = ""
+			m.scanCursor = 0
+			m.scanRows = nil
+			m.scanSources = nil
+			m.scanSkippedPaths = nil
+			m.scanSkippedExisting = 0
+			m.scanLoading = true
+			return m, runScanCmd(m.config, m.repo)
+		}
+	}
+	return m, nil
+}
+
+func (m *Model) updateScan(msg tea.Msg) (tea.Model, tea.Cmd) {
+	km, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return m, nil
+	}
+	switch {
+	case m.keys.shouldQuit(km):
+		return m, tea.Quit
+	case m.keys.shouldBack(km):
+		m.screen = ScreenHome
+		return m, nil
+	case strings.EqualFold(km.String(), "r"):
+		m.scanLoading = true
+		m.scanStatus = ""
+		m.scanRows = nil
+		m.scanCursor = 0
+		return m, runScanCmd(m.config, m.repo)
+	case strings.EqualFold(km.String(), "a"):
+		for i := range m.scanRows {
+			m.scanRows[i].Selected = true
+		}
+		return m, nil
+	case strings.EqualFold(km.String(), "c"):
+		for i := range m.scanRows {
+			m.scanRows[i].Selected = false
+		}
+		return m, nil
+	case km.Type == tea.KeySpace:
+		if len(m.scanRows) > 0 && m.scanCursor < len(m.scanRows) {
+			m.scanRows[m.scanCursor].Selected = !m.scanRows[m.scanCursor].Selected
+		}
+		return m, nil
+	case key.Matches(km, m.keys.Enter):
+		if len(m.scanRows) == 0 {
+			return m, nil
+		}
+		rows := append([]model.ScanSuggestion(nil), m.scanRows...)
+		return m, importScanCmd(m.repo, rows)
+	case key.Matches(km, m.keys.Up):
+		if m.scanCursor > 0 {
+			m.scanCursor--
+		}
+	case key.Matches(km, m.keys.Down):
+		if m.scanCursor < len(m.scanRows)-1 {
+			m.scanCursor++
 		}
 	}
 	return m, nil
