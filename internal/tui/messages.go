@@ -7,6 +7,7 @@ import (
 
 	"github.com/valeriybagrintsev/gloss/internal/alias"
 	"github.com/valeriybagrintsev/gloss/internal/model"
+	"github.com/valeriybagrintsev/gloss/internal/openurl"
 	"github.com/valeriybagrintsev/gloss/internal/scan"
 	"github.com/valeriybagrintsev/gloss/internal/storage"
 )
@@ -42,6 +43,16 @@ type syncAliasesMsg struct {
 	backupPath string
 	shellPath  string
 	noop       bool
+}
+
+type openURLMsg struct {
+	err error
+}
+
+func openURLCmd(url string) tea.Cmd {
+	return func() tea.Msg {
+		return openURLMsg{err: openurl.Open(url)}
+	}
 }
 
 func loadEntriesCmd(repo *storage.EntryRepo) tea.Cmd {

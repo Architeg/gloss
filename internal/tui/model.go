@@ -26,8 +26,10 @@ type Model struct {
 	width  int
 	height int
 
-	screen     Screen
-	homeCursor int
+	screen        Screen
+	homeCursor    int
+	homeSection   homeSection
+	supportCursor int
 
 	config *model.Config
 	repo   *storage.EntryRepo
@@ -220,6 +222,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.aliasStatus = fmt.Sprintf("Wrote managed block to %s", msg.shellPath)
 		}
 		return m, loadEntriesCmd(m.repo)
+
+	case openURLMsg:
+		if msg.err != nil {
+			m.errBanner = msg.err.Error()
+		} else {
+			m.errBanner = ""
+		}
+		return m, nil
 	}
 
 	switch m.screen {
@@ -329,16 +339,55 @@ func (m *Model) updateHome(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch {
 	case m.keys.shouldQuit(km):
 		return m, tea.Quit
+	case key.Matches(km, m.keys.Back):
+		if m.homeSection == homeSectionSupport {
+			m.homeSection = homeSectionMenu
+			m.homeCursor = len(HomeMenu) - 1
+			return m, nil
+		}
 	case key.Matches(km, m.keys.Up):
+		if m.homeSection == homeSectionSupport {
+			m.homeSection = homeSectionMenu
+			m.homeCursor = len(HomeMenu) - 1
+			return m, nil
+		}
 		if m.homeCursor > 0 {
 			m.homeCursor--
 		}
+		return m, nil
 	case key.Matches(km, m.keys.Down):
+		if m.homeSection == homeSectionSupport {
+			return m, nil
+		}
 		if m.homeCursor < len(HomeMenu)-1 {
 			m.homeCursor++
+			return m, nil
 		}
+		m.homeSection = homeSectionSupport
+		m.supportCursor = 0
+		return m, nil
+	case key.Matches(km, m.keys.Left):
+		if m.homeSection == homeSectionSupport && m.supportCursor > 0 {
+			m.supportCursor--
+		}
+		return m, nil
+	case key.Matches(km, m.keys.Right):
+		if m.homeSection == homeSectionSupport && m.supportCursor < len(HomeSupportLinks)-1 {
+			m.supportCursor++
+		}
+		return m, nil
 	case key.Matches(km, m.keys.Enter):
-		m.screen = HomeMenu[m.homeCursor].Screen
+		if m.homeSection == homeSectionSupport {
+			if m.supportCursor >= 0 && m.supportCursor < len(HomeSupportLinks) {
+				return m, openURLCmd(HomeSupportLinks[m.supportCursor].URL)
+			}
+			return m, nil
+		}
+		item := HomeMenu[m.homeCursor]
+		if item.OpenURL != "" {
+			return m, openURLCmd(item.OpenURL)
+		}
+		m.screen = item.Screen
 		switch m.screen {
 		case ScreenAdd:
 			m.errBanner = ""
@@ -372,6 +421,8 @@ func (m *Model) updateHome(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.aliasForm.prepare()
 			m.aliasForm.blurAll()
 			return m, loadEntriesCmd(m.repo)
+		case ScreenSettings:
+			m.errBanner = ""
 		}
 	}
 	return m, nil

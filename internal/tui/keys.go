@@ -12,6 +12,7 @@ type bindings struct {
 	Quit  key.Binding
 	Back  key.Binding
 	Left  key.Binding
+	Right key.Binding
 }
 
 func newBindings() bindings {
@@ -33,6 +34,9 @@ func newBindings() bindings {
 		),
 		Left: key.NewBinding(
 			key.WithKeys("left", "h"),
+		),
+		Right: key.NewBinding(
+			key.WithKeys("right", "l"),
 		),
 	}
 }

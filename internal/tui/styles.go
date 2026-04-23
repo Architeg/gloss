@@ -16,6 +16,7 @@ type Styles struct {
 	BannerMark    lipgloss.Style
 	RepoURL       lipgloss.Style
 	BannerTagline lipgloss.Style
+	BannerMeta    lipgloss.Style
 
 	HomeDesc    lipgloss.Style
 	HomeSelDesc lipgloss.Style
@@ -91,6 +92,9 @@ func newStyles() Styles {
 
 		BannerTagline: lipgloss.NewStyle().
 			Foreground(green),
+
+		BannerMeta: lipgloss.NewStyle().
+			Foreground(dim),
 
 		HomeDesc: lipgloss.NewStyle().
 			Foreground(tertiary),

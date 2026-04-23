@@ -10,11 +10,13 @@ const (
 	ScreenScan
 	ScreenAliases
 	ScreenSettings
+	ScreenReadme
 )
 
 type menuItem struct {
-	Title  string
-	Screen Screen
+	Title   string
+	Screen  Screen
+	OpenURL string // if set, Enter opens this URL instead of navigating
 }
 
 // HomeMenu is the main menu order and routing targets.
@@ -24,6 +26,7 @@ var HomeMenu = []menuItem{
 	{Title: "Scan", Screen: ScreenScan},
 	{Title: "Aliases", Screen: ScreenAliases},
 	{Title: "Settings", Screen: ScreenSettings},
+	{Title: "Readme", Screen: ScreenReadme, OpenURL: URLReadmeDocs},
 }
 
 func screenTitle(s Screen) string {
@@ -38,6 +41,8 @@ func screenTitle(s Screen) string {
 		return "Aliases"
 	case ScreenSettings:
 		return "Settings"
+	case ScreenReadme:
+		return "Readme"
 	default:
 		return ""
 	}
@@ -55,6 +60,8 @@ func placeholderBlurb(s Screen) string {
 		return "Manage aliases and sync to zshrc"
 	case ScreenSettings:
 		return "Configure shell file and storage paths"
+	case ScreenReadme:
+		return "Open docs in browser"
 	default:
 		return ""
 	}

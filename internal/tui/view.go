@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -67,13 +68,14 @@ func (m *Model) homeView(width int) string {
 	for i, item := range HomeMenu {
 		desc := placeholderBlurb(item.Screen)
 		gutter := lipgloss.NewStyle().Width(2).Align(lipgloss.Left).Render("")
-		if i == m.homeCursor {
+		menuSel := m.homeSection == homeSectionMenu && i == m.homeCursor
+		if menuSel {
 			gutter = lipgloss.NewStyle().Width(2).Align(lipgloss.Left).Render(m.styles.SelCaret.Render("›"))
 		}
 
 		labelSt := m.styles.Item.Width(homeLabelW).Align(lipgloss.Left)
 		descSt := m.styles.HomeDesc
-		if i == m.homeCursor {
+		if menuSel {
 			labelSt = m.styles.Selected.Width(homeLabelW).Align(lipgloss.Left)
 			descSt = m.styles.HomeSelDesc
 		}
@@ -90,6 +92,23 @@ func (m *Model) homeView(width int) string {
 			b.WriteString("\n")
 		}
 	}
+
+	// Extra vertical gap before the secondary support row (menu unchanged above).
+	b.WriteString("\n\n\n\n")
+	for j, link := range HomeSupportLinks {
+		chip := fmt.Sprintf("[%s %s]", link.Icon, link.Label)
+		var cell string
+		if m.homeSection == homeSectionSupport && j == m.supportCursor {
+			cell = m.styles.Selected.Render(chip)
+		} else {
+			cell = m.styles.HomeDesc.Render(chip)
+		}
+		b.WriteString(cell)
+		if j < len(HomeSupportLinks)-1 {
+			b.WriteString("  ")
+		}
+	}
+
 	return b.String()
 }
 
@@ -108,6 +127,14 @@ func (m *Model) placeholderView(width int) string {
 func (m *Model) footerContent() string {
 	switch m.screen {
 	case ScreenHome:
+		if m.homeSection == homeSectionSupport {
+			return m.renderFooter([]footPart{
+				{key: "←→", label: "Choose"},
+				{key: "↑", label: "Menu"},
+				{key: "Enter", label: "Open"},
+				{key: "Q", label: "Quit"},
+			})
+		}
 		return m.renderFooter([]footPart{
 			{key: "↑↓", label: "Move"},
 			{key: "Enter", label: "Open"},
