@@ -1,0 +1,50 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Finder / system
+Icon?
+._*
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Cursor / AI editor local files
+.cursor/
+.cursor-cache/
+
+# Go
+bin/
+dist/
+build/
+*.test
+coverage.out
+.coverprofile
+
+# Go workspace / vendor (only if used later)
+vendor/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# SQLite / local app data
+*.db
+*.db-shm
+*.db-wal
+
+# App local runtime data
+data/
+tmp/
+
+# OS / misc
+Thumbs.db
