@@ -74,6 +74,36 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "alias":
+			if len(os.Args) < 3 {
+				fmt.Fprintln(os.Stderr, "gloss: usage: gloss alias <add|sync|delete>")
+				os.Exit(1)
+			}
+			switch os.Args[2] {
+			case "add":
+				if err := runAliasAddCLI(repo); err != nil {
+					fmt.Fprintf(os.Stderr, "gloss: alias add: %v\n", err)
+					os.Exit(1)
+				}
+			case "sync":
+				if err := runAliasSyncCLI(cfg, repo); err != nil {
+					fmt.Fprintf(os.Stderr, "gloss: alias sync: %v\n", err)
+					os.Exit(1)
+				}
+			case "delete":
+				if len(os.Args) < 4 || strings.TrimSpace(os.Args[3]) == "" {
+					fmt.Fprintln(os.Stderr, "gloss: usage: gloss alias delete <name>")
+					os.Exit(1)
+				}
+				if err := runAliasDeleteCLI(repo, os.Args[3]); err != nil {
+					fmt.Fprintf(os.Stderr, "gloss: alias delete: %v\n", err)
+					os.Exit(1)
+				}
+			default:
+				fmt.Fprintln(os.Stderr, "gloss: usage: gloss alias <add|sync|delete>")
+				os.Exit(1)
+			}
+			return
 		case "help", "-h", "--help":
 			printCLIHelp()
 			return
@@ -102,6 +132,9 @@ Terminal commands (no TUI):
   gloss scan             list scan suggestions (print only)
   gloss edit <command>   edit description/tags (interactive)
   gloss delete <command> remove an entry
+  gloss alias add           add a managed alias (does not write ~/.zshrc)
+  gloss alias sync          write managed alias block to shell file (with backup)
+  gloss alias delete <name> remove a managed alias from Gloss
 
   gloss, gloss help      show this help
 

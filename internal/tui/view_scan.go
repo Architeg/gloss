@@ -53,7 +53,7 @@ func truncateScanTail(s string, maxW int) string {
 func (m *Model) scanView(width int) string {
 	var b strings.Builder
 	b.WriteString(m.banner(width))
-	b.WriteString(m.styles.Title.Width(width).Render("Scan"))
+	b.WriteString(m.sectionTitleBlock(width, "Scan"))
 	b.WriteString("\n\n")
 
 	b.WriteString(m.styles.FieldLabel.Render("Sources"))

@@ -46,6 +46,8 @@ func (m *Model) mainBlock(width int) string {
 		return m.addFormView(width)
 	case ScreenScan:
 		return m.scanView(width)
+	case ScreenAliases:
+		return m.aliasesMainView(width)
 	default:
 		return m.placeholderView(width)
 	}
@@ -83,7 +85,7 @@ func (m *Model) homeView(width int) string {
 		)
 		b.WriteString(lipgloss.NewStyle().Width(width).Render(line))
 		if i < len(HomeMenu)-1 {
-			b.WriteString("\n\n")
+			b.WriteString("\n")
 		}
 	}
 	return b.String()
@@ -127,6 +129,41 @@ func (m *Model) footerContent() string {
 			{key: "Esc", label: "Back"},
 			{key: "Q", label: "Quit"},
 		})
+	case ScreenAliases:
+		switch m.aliasPhase {
+		case aliasPhaseAdd:
+			return m.renderFooter([]footPart{
+				{key: "Esc", label: "Cancel"},
+				{key: "Tab", label: "Field"},
+				{key: "^S", label: "Save"},
+				{key: "Q", label: "Quit"},
+			})
+		case aliasPhaseView:
+			return m.renderFooter([]footPart{
+				{key: "↑↓", label: "Move"},
+				{key: "D", label: "Delete"},
+				{key: "Esc", label: "Back"},
+				{key: "Q", label: "Quit"},
+			})
+		case aliasPhaseDeleteConfirm:
+			return m.renderFooter([]footPart{
+				{key: "Y", label: "Confirm"},
+				{key: "N", label: "Cancel"},
+				{key: "Q", label: "Quit"},
+			})
+		case aliasPhasePreview:
+			return m.renderFooter([]footPart{
+				{key: "Esc", label: "Back"},
+				{key: "Q", label: "Quit"},
+			})
+		default:
+			return m.renderFooter([]footPart{
+				{key: "↑↓", label: "Move"},
+				{key: "Enter", label: "Open"},
+				{key: "Esc", label: "Back"},
+				{key: "Q", label: "Quit"},
+			})
+		}
 	case ScreenCommands:
 		switch m.cmdPhase {
 		case commandsBrowse:

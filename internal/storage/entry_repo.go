@@ -86,6 +86,32 @@ ORDER BY command COLLATE NOCASE`)
 	return out, nil
 }
 
+// GetManagedAliases returns alias entries flagged for Gloss sync, sorted by command.
+func (r *EntryRepo) GetManagedAliases(ctx context.Context) ([]model.Entry, error) {
+	rows, err := r.db.QueryContext(ctx, `
+SELECT id, command, description, tags, type, source, target, managed_alias, created_at, updated_at
+FROM entries
+WHERE managed_alias = 1 AND type = ?
+ORDER BY command COLLATE NOCASE`, model.EntryTypeAlias)
+	if err != nil {
+		return nil, fmt.Errorf("query managed aliases: %w", err)
+	}
+	defer rows.Close()
+
+	var out []model.Entry
+	for rows.Next() {
+		e, err := scanEntry(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate managed aliases: %w", err)
+	}
+	return out, nil
+}
+
 // GetEntriesByTag filters entries that contain tag (exact match on tag string).
 func (r *EntryRepo) GetEntriesByTag(ctx context.Context, tag string) ([]model.Entry, error) {
 	all, err := r.GetAllEntries(ctx)

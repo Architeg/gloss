@@ -57,6 +57,13 @@ type Model struct {
 	scanSkippedExisting int
 	scanSkippedPaths    []string
 	scanStatus          string
+
+	aliasPhase         aliasPhase
+	aliasMenuCursor    int
+	aliasForm          aliasFormState
+	aliasViewCursor    int
+	aliasDeletePending string
+	aliasStatus        string
 }
 
 // New returns the initial TUI model.
@@ -73,16 +80,18 @@ func New(opts Options) tea.Model {
 	tag.Blur()
 
 	m := &Model{
-		styles:   newStyles(),
-		keys:     newBindings(),
-		screen:   ScreenHome,
-		config:   opts.Config,
-		repo:     opts.Repo,
-		searchTI: search,
-		tagTI:    tag,
-		form:     newFormState(cw),
+		styles:    newStyles(),
+		keys:      newBindings(),
+		screen:    ScreenHome,
+		config:    opts.Config,
+		repo:      opts.Repo,
+		searchTI:  search,
+		tagTI:     tag,
+		form:      newFormState(cw),
+		aliasForm: newAliasFormState(cw),
 	}
 	m.form.applyTextInputTheme(m.styles)
+	m.aliasForm.applyTheme(m.styles)
 	return m
 }
 
@@ -101,6 +110,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.form.resizeInputs(cw)
 		m.searchTI.Width = max(cw-8, 14)
 		m.tagTI.Width = max(cw-8, 14)
+		m.aliasForm.resize(cw)
 		return m, nil
 
 	case entriesMsg:
@@ -111,6 +121,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.errBanner = ""
 		m.allEntries = msg.entries
 		m.rebuildBrowse()
+		if m.screen == ScreenAliases && m.aliasPhase == aliasPhaseView {
+			rows := m.managedAliasRows()
+			if len(rows) == 0 {
+				m.aliasViewCursor = 0
+			} else if m.aliasViewCursor >= len(rows) {
+				m.aliasViewCursor = len(rows) - 1
+			}
+		}
 		return m, nil
 
 	case saveMsg:
@@ -124,6 +142,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case deleteMsg:
 		if msg.err != nil {
 			m.errBanner = msg.err.Error()
+			if m.screen == ScreenAliases && m.aliasPhase == aliasPhaseDeleteConfirm {
+				m.aliasPhase = aliasPhaseView
+				m.aliasDeletePending = ""
+				return m, nil
+			}
 			if m.deleteFromBrowse {
 				m.cmdPhase = commandsBrowse
 				m.deleteFromBrowse = false
@@ -133,6 +156,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.errBanner = ""
+		if m.screen == ScreenAliases && m.aliasPhase == aliasPhaseDeleteConfirm {
+			m.aliasPhase = aliasPhaseView
+			m.aliasDeletePending = ""
+			return m, loadEntriesCmd(m.repo)
+		}
 		m.deleteFromBrowse = false
 		m.cmdPhase = commandsBrowse
 		m.deleteReset()
@@ -174,6 +202,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.scanStatus = "Nothing imported (no rows selected)"
 		}
 		return m, tea.Batch(loadEntriesCmd(m.repo), runScanCmd(m.config, m.repo))
+
+	case syncAliasesMsg:
+		if msg.err != nil {
+			m.errBanner = msg.err.Error()
+			m.aliasStatus = ""
+			return m, nil
+		}
+		m.errBanner = ""
+		if msg.noop {
+			m.aliasStatus = "Shell file already up to date."
+			return m, nil
+		}
+		if msg.backupPath != "" {
+			m.aliasStatus = fmt.Sprintf("Synced. Backup: %s", msg.backupPath)
+		} else {
+			m.aliasStatus = fmt.Sprintf("Wrote managed block to %s", msg.shellPath)
+		}
+		return m, loadEntriesCmd(m.repo)
 	}
 
 	switch m.screen {
@@ -185,6 +231,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateAddScreen(msg)
 	case ScreenScan:
 		return m.updateScan(msg)
+	case ScreenAliases:
+		return m.updateAliases(msg)
 	default:
 		return m.updatePlaceholder(msg)
 	}
@@ -207,6 +255,13 @@ func (m *Model) rebuildBrowse() {
 }
 
 func (m *Model) afterSave() (tea.Model, tea.Cmd) {
+	if m.screen == ScreenAliases && m.aliasPhase == aliasPhaseAdd {
+		m.aliasPhase = aliasPhaseMenu
+		m.aliasForm.blurAll()
+		m.aliasForm.prepare()
+		m.aliasStatus = "Saved managed alias (run Sync to update shell file)"
+		return m, loadEntriesCmd(m.repo)
+	}
 	if m.screen == ScreenAdd {
 		if m.returnToCommandsAfterForm {
 			m.returnToCommandsAfterForm = false
@@ -306,6 +361,15 @@ func (m *Model) updateHome(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.scanSkippedExisting = 0
 			m.scanLoading = true
 			return m, runScanCmd(m.config, m.repo)
+		case ScreenAliases:
+			m.errBanner = ""
+			m.aliasStatus = ""
+			m.aliasPhase = aliasPhaseMenu
+			m.aliasMenuCursor = 0
+			m.aliasDeletePending = ""
+			m.aliasForm.prepare()
+			m.aliasForm.blurAll()
+			return m, loadEntriesCmd(m.repo)
 		}
 	}
 	return m, nil

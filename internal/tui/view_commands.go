@@ -102,8 +102,13 @@ func (m *Model) categoryHeaderBlock(width int, name string) string {
 		m.styles.CategoryName.Render(name),
 	)
 
-	divLen := lipgloss.Width(head) + 10
-	divLen = clamp(divLen, 24, 44)
+	divLen := lipgloss.Width(head) + 4
+	if divLen < 14 {
+		divLen = 14
+	}
+	if divLen > 24 {
+		divLen = 24
+	}
 
 	rule := m.styles.Divider.Render(strings.Repeat("─", divLen))
 	return head + "\n" + rule
@@ -112,8 +117,12 @@ func (m *Model) categoryHeaderBlock(width int, name string) string {
 func (m *Model) commandsBrowseView(width int) string {
 	var b strings.Builder
 
-	b.WriteString(m.filterStatusBlock(width))
+	b.WriteString(m.banner(width))
+	b.WriteString(m.sectionTitleBlock(width, "Commands"))
 	b.WriteString("\n\n")
+
+	b.WriteString(m.filterStatusBlock(width))
+	b.WriteString("\n")
 
 	cmdW, gap, descW := browseColumnWidths(width)
 
@@ -145,12 +154,10 @@ func (m *Model) commandsBrowseView(width int) string {
 		cmdPart := truncateVisual(row.Entry.Command, cmdW)
 
 		selected := i == m.browseCursor && m.cmdFocus == commandsFocusList
-		gutter := lipgloss.NewStyle().Width(2).Align(lipgloss.Left).Render("")
+
+		gutter := "  "
 		if selected {
-			gutter = lipgloss.NewStyle().
-				Width(2).
-				Align(lipgloss.Left).
-				Render(m.styles.SelCaret.Render("›"))
+			gutter = m.styles.SelCaret.Render("› ")
 		}
 
 		var cmdCell, descCell string
@@ -169,7 +176,8 @@ func (m *Model) commandsBrowseView(width int) string {
 			strings.Repeat(" ", gap),
 			descCell,
 		)
-		b.WriteString(lipgloss.NewStyle().Width(width).Render(line))
+
+		b.WriteString(line)
 
 		if i < len(m.cmdRows)-1 {
 			b.WriteString("\n")
