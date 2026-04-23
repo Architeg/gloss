@@ -233,6 +233,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateScan(msg)
 	case ScreenAliases:
 		return m.updateAliases(msg)
+	case ScreenSettings:
+		return m.updateSettings(msg)
 	default:
 		return m.updatePlaceholder(msg)
 	}
@@ -437,6 +439,10 @@ func (m *Model) updatePlaceholder(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.screen = ScreenHome
 	}
 	return m, nil
+}
+
+func (m *Model) updateSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
+	return m.updatePlaceholder(msg)
 }
 
 func (m *Model) updateCommands(msg tea.Msg) (tea.Model, tea.Cmd) {

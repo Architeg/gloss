@@ -48,6 +48,8 @@ func (m *Model) mainBlock(width int) string {
 		return m.scanView(width)
 	case ScreenAliases:
 		return m.aliasesMainView(width)
+	case ScreenSettings:
+		return m.settingsView(width)
 	default:
 		return m.placeholderView(width)
 	}

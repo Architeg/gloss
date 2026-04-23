@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/tabwriter"
 	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -37,6 +38,10 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "scan":
+			if len(os.Args) > 2 {
+				fmt.Fprintln(os.Stderr, "gloss: usage: gloss scan")
+				os.Exit(1)
+			}
 			if err := runScanCLI(cfg, repo); err != nil {
 				fmt.Fprintf(os.Stderr, "gloss: scan: %v\n", err)
 				os.Exit(1)
@@ -49,13 +54,18 @@ func main() {
 			}
 			return
 		case "list":
-			if err := runListCLI(repo); err != nil {
+			tag, err := parseListArgs(os.Args[2:])
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err.Error())
+				os.Exit(1)
+			}
+			if err := runListCLI(repo, tag); err != nil {
 				fmt.Fprintf(os.Stderr, "gloss: list: %v\n", err)
 				os.Exit(1)
 			}
 			return
 		case "edit":
-			if len(os.Args) < 3 || strings.TrimSpace(os.Args[2]) == "" {
+			if len(os.Args) != 3 || strings.TrimSpace(os.Args[2]) == "" {
 				fmt.Fprintln(os.Stderr, "gloss: usage: gloss edit <command>")
 				os.Exit(1)
 			}
@@ -65,7 +75,7 @@ func main() {
 			}
 			return
 		case "delete":
-			if len(os.Args) < 3 || strings.TrimSpace(os.Args[2]) == "" {
+			if len(os.Args) != 3 || strings.TrimSpace(os.Args[2]) == "" {
 				fmt.Fprintln(os.Stderr, "gloss: usage: gloss delete <command>")
 				os.Exit(1)
 			}
@@ -81,17 +91,25 @@ func main() {
 			}
 			switch os.Args[2] {
 			case "add":
+				if len(os.Args) > 3 {
+					fmt.Fprintln(os.Stderr, "gloss: usage: gloss alias add")
+					os.Exit(1)
+				}
 				if err := runAliasAddCLI(repo); err != nil {
 					fmt.Fprintf(os.Stderr, "gloss: alias add: %v\n", err)
 					os.Exit(1)
 				}
 			case "sync":
+				if len(os.Args) > 3 {
+					fmt.Fprintln(os.Stderr, "gloss: usage: gloss alias sync")
+					os.Exit(1)
+				}
 				if err := runAliasSyncCLI(cfg, repo); err != nil {
 					fmt.Fprintf(os.Stderr, "gloss: alias sync: %v\n", err)
 					os.Exit(1)
 				}
 			case "delete":
-				if len(os.Args) < 4 || strings.TrimSpace(os.Args[3]) == "" {
+				if len(os.Args) != 4 || strings.TrimSpace(os.Args[3]) == "" {
 					fmt.Fprintln(os.Stderr, "gloss: usage: gloss alias delete <name>")
 					os.Exit(1)
 				}
@@ -126,20 +144,34 @@ func main() {
 func printCLIHelp() {
 	fmt.Println(`Gloss — command glossary
 
-Terminal commands (no TUI):
-  gloss add              add an entry (interactive prompts)
-  gloss list             print all entries
-  gloss scan             list scan suggestions (print only)
-  gloss edit <command>   edit description/tags (interactive)
-  gloss delete <command> remove an entry
-  gloss alias add           add a managed alias (does not write ~/.zshrc)
-  gloss alias sync          write managed alias block to shell file (with backup)
-  gloss alias delete <name> remove a managed alias from Gloss
+Terminal (no TUI):
+  gloss add                  add an entry (prompts)
+  gloss list [--tag <tag>]   list entries, optionally filter by tag
+  gloss scan                 print scan suggestions (no import)
+  gloss edit <command>       edit description/tags (prompts)
+  gloss delete <command>     remove an entry
+  gloss alias add            add managed alias (stored only; sync separately)
+  gloss alias sync           write managed block to shell file (backup if needed)
+  gloss alias delete <name>  remove a managed alias
 
-  gloss, gloss help      show this help
+  gloss help                 show this help
 
-Launch the TUI:
+Launch TUI:
   gloss`)
+}
+
+func parseListArgs(args []string) (string, error) {
+	if len(args) == 0 {
+		return "", nil
+	}
+	if len(args) == 2 && (args[0] == "--tag" || args[0] == "-t") {
+		t := strings.TrimSpace(args[1])
+		if t == "" {
+			return "", fmt.Errorf("gloss: usage: gloss list [--tag <tag>]")
+		}
+		return t, nil
+	}
+	return "", fmt.Errorf("gloss: usage: gloss list [--tag <tag>]")
 }
 
 func runScanCLI(cfg *model.Config, repo *storage.EntryRepo) error {
@@ -157,32 +189,40 @@ func runScanCLI(cfg *model.Config, repo *storage.EntryRepo) error {
 		return err
 	}
 
-	fmt.Println("Gloss scan")
+	fmt.Println("Gloss — scan")
 	fmt.Println()
-	fmt.Println("Sources:")
+	fmt.Println("Sources")
 	for _, p := range res.Sources {
 		fmt.Printf("  %s\n", p)
 	}
 	if len(res.SkippedPaths) > 0 {
 		fmt.Println()
-		fmt.Println("Unavailable paths:")
+		fmt.Println("Unavailable (skipped)")
 		for _, p := range res.SkippedPaths {
 			fmt.Printf("  %s\n", p)
 		}
 	}
 	fmt.Println()
-	fmt.Printf("Suggestions: %d new (%d already in glossary, skipped)\n\n", len(res.Suggestions), res.SkippedExisting)
+	fmt.Printf("Summary   %d new   ·   %d already in glossary\n", len(res.Suggestions), res.SkippedExisting)
+	fmt.Println()
 
+	if len(res.Suggestions) == 0 {
+		fmt.Println("No new suggestions.")
+		return nil
+	}
+
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "COMMAND\tTYPE\tDETAIL")
 	for _, s := range res.Suggestions {
 		detail := strings.TrimSpace(s.Target)
 		if detail == "" {
 			detail = s.Source
 		}
-		if utf8.RuneCountInString(detail) > 64 {
+		if utf8.RuneCountInString(detail) > 72 {
 			runes := []rune(detail)
-			detail = string(runes[:61]) + "..."
+			detail = string(runes[:69]) + "..."
 		}
-		fmt.Printf("  %-18s  %-10s  %s\n", s.Command, s.Type, detail)
+		fmt.Fprintf(tw, "%s\t%s\t%s\n", s.Command, s.Type, detail)
 	}
-	return nil
+	return tw.Flush()
 }
