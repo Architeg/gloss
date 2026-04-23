@@ -17,6 +17,7 @@ Icon?
 # Cursor / AI editor local files
 .cursor/
 .cursor-cache/
+.git/cursor/
 
 # Go
 bin/
