@@ -18,6 +18,12 @@ import (
 	"github.com/valeriybagrintsev/gloss/internal/tui"
 )
 
+var (
+	Version = "0.1.0"
+	Commit  = "dev"
+	Date    = "unknown"
+)
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -37,6 +43,9 @@ func main() {
 
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
+		case "version", "--version", "-v":
+			printVersion()
+			return
 		case "scan":
 			if len(os.Args) > 2 {
 				fmt.Fprintln(os.Stderr, "gloss: usage: gloss scan")
@@ -141,20 +150,27 @@ func main() {
 	}
 }
 
+func printVersion() {
+	fmt.Printf("gloss %s\n", Version)
+}
+
 func printCLIHelp() {
 	fmt.Println(`Gloss — command glossary
 
 Terminal (no TUI):
-  gloss add                  add an entry (prompts)
-  gloss list [--tag <tag>]   list entries, optionally filter by tag
-  gloss scan                 print scan suggestions (no import)
-  gloss edit <command>       edit description/tags (prompts)
-  gloss delete <command>     remove an entry
-  gloss alias add            add managed alias (stored only; sync separately)
-  gloss alias sync           write managed block to shell file (backup if needed)
-  gloss alias delete <name>  remove a managed alias
+  gloss version                print version
+  gloss --version              print version
+  gloss -v                     print version
+  gloss add                    add an entry (prompts)
+  gloss list [--tag <tag>]     list entries, optionally filter by tag
+  gloss scan                   print scan suggestions (no import)
+  gloss edit <command>         edit description/tags (prompts)
+  gloss delete <command>       remove an entry
+  gloss alias add              add managed alias (stored only; sync separately)
+  gloss alias sync             write managed block to shell file (backup if needed)
+  gloss alias delete <name>    remove a managed alias
 
-  gloss help                 show this help
+  gloss help                   show this help
 
 Launch TUI:
   gloss`)
