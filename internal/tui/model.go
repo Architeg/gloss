@@ -1,26 +1,40 @@
 package tui
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/key"
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/valeriybagrintsev/gloss/internal/model"
+	"github.com/valeriybagrintsev/gloss/internal/storage"
 )
+
+// Options carries dependencies created during app bootstrap.
+type Options struct {
+	Config *model.Config
+	Repo   *storage.EntryRepo
+}
 
 // Model is the root Bubble Tea model for Gloss.
 type Model struct {
-	styles   Styles
-	keys     bindings
-	width    int
-	height   int
-	screen   Screen
-	cursor   int
+	styles Styles
+	keys   bindings
+	width  int
+	height int
+	screen Screen
+	cursor int
+
+	config *model.Config
+	repo   *storage.EntryRepo
 }
 
 // New returns the initial TUI model.
-func New() Model {
+func New(opts Options) Model {
 	return Model{
 		styles: newStyles(),
 		keys:   newBindings(),
 		screen: ScreenHome,
+		config: opts.Config,
+		repo:   opts.Repo,
 	}
 }
 
