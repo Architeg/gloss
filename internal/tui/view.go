@@ -6,8 +6,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const homeLabelW = 14
+
 // View implements tea.Model.
-func (m Model) View() string {
+func (m *Model) View() string {
 	w, h := m.width, m.height
 	if w <= 0 {
 		w = 80
@@ -16,8 +18,9 @@ func (m Model) View() string {
 		h = 24
 	}
 
-	footer := m.footerLine()
-	footerBlock := m.styles.Padding.Render(m.styles.Footer.Render(footer))
+	footerStr := m.footerContent()
+	footerLine := lipgloss.NewStyle().MarginTop(1).Render(footerStr)
+	footerBlock := m.styles.Padding.Render(footerLine)
 	footerH := lipgloss.Height(footerBlock)
 	mainH := h - footerH
 	if mainH < 1 {
@@ -33,47 +36,137 @@ func (m Model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, main, footerBlock)
 }
 
-func (m Model) mainBlock(width int) string {
-	if m.screen == ScreenHome {
+func (m *Model) mainBlock(width int) string {
+	switch m.screen {
+	case ScreenHome:
 		return m.homeView(width)
+	case ScreenCommands:
+		return m.commandsMainView(width)
+	case ScreenAdd:
+		return m.addFormView(width)
+	default:
+		return m.placeholderView(width)
 	}
-	return m.placeholderView(width)
 }
 
-func (m Model) homeView(width int) string {
+func (m *Model) homeView(width int) string {
 	var b strings.Builder
-	b.WriteString(m.styles.Title.Width(width).Render("Gloss"))
-	b.WriteString("\n")
-	b.WriteString(m.styles.Subtitle.Width(width).Render("Command glossary and alias helper"))
-	b.WriteString("\n\n")
+	tw := width
+	if tw <= 0 {
+		tw = contentWidth(m.width)
+	}
+	b.WriteString(m.renderHomeBanner(tw))
+	b.WriteString("\n\n\n")
 
 	for i, item := range HomeMenu {
-		style := m.styles.Item
-		if i == m.cursor {
-			style = m.styles.Selected
+		desc := placeholderBlurb(item.Screen)
+		gutter := lipgloss.NewStyle().Width(2).Align(lipgloss.Left).Render("")
+		if i == m.homeCursor {
+			gutter = lipgloss.NewStyle().Width(2).Align(lipgloss.Left).Render(m.styles.SelCaret.Render("›"))
 		}
-		line := style.Width(width).Render(item.Title)
-		b.WriteString(line)
+
+		labelSt := m.styles.Item.Width(homeLabelW).Align(lipgloss.Left)
+		descSt := m.styles.HomeDesc
+		if i == m.homeCursor {
+			labelSt = m.styles.Selected.Width(homeLabelW).Align(lipgloss.Left)
+			descSt = m.styles.HomeSelDesc
+		}
+
+		line := lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			gutter,
+			labelSt.Render(item.Title),
+			"  ",
+			descSt.Render(desc),
+		)
+		b.WriteString(lipgloss.NewStyle().Width(width).Render(line))
 		if i < len(HomeMenu)-1 {
-			b.WriteString("\n")
+			b.WriteString("\n\n")
 		}
 	}
 	return b.String()
 }
 
-func (m Model) placeholderView(width int) string {
+func (m *Model) placeholderView(width int) string {
 	title := screenTitle(m.screen)
 	blurb := placeholderBlurb(m.screen)
 	var b strings.Builder
 	b.WriteString(m.styles.Title.Width(width).Render(title))
 	b.WriteString("\n\n")
-	b.WriteString(m.styles.Blurb.Width(width).Render(blurb))
+	b.WriteString(m.styles.FieldLabel.Render("About"))
+	b.WriteString("\n")
+	b.WriteString(m.styles.FieldValue.Width(width).Render(blurb))
 	return b.String()
 }
 
-func (m Model) footerLine() string {
-	if m.screen == ScreenHome {
-		return "↑↓ Move    Enter Select    Q Quit"
+func (m *Model) footerContent() string {
+	switch m.screen {
+	case ScreenHome:
+		return m.renderFooter([]footPart{
+			{key: "↑↓", label: "Move"},
+			{key: "Enter", label: "Open"},
+			{key: "Q", label: "Quit"},
+		})
+	case ScreenAdd:
+		return m.renderFooter([]footPart{
+			{key: "Esc", label: "Cancel"},
+			{key: "Tab", label: "Field"},
+			{key: "^S", label: "Save"},
+			{key: "Q", label: "Quit"},
+		})
+	case ScreenCommands:
+		switch m.cmdPhase {
+		case commandsBrowse:
+			if m.cmdFocus == commandsFocusSearch {
+				return m.renderFooter([]footPart{
+					{key: "Esc", label: "List"},
+					{key: "Q", label: "Quit"},
+				})
+			}
+			if m.cmdFocus == commandsFocusTag {
+				return m.renderFooter([]footPart{
+					{key: "Esc", label: "List"},
+					{key: "Q", label: "Quit"},
+				})
+			}
+			return m.renderFooter([]footPart{
+				{key: "/", label: "Search"},
+				{key: "F", label: "Filter"},
+				{key: "E", label: "Edit"},
+				{key: "D", label: "Delete"},
+				{key: "A", label: "Add"},
+				{key: "↑↓", label: "Move"},
+				{key: "Enter", label: "Open"},
+				{key: "Esc", label: "Back"},
+				{key: "Q", label: "Quit"},
+			})
+		case commandsDetail:
+			return m.renderFooter([]footPart{
+				{key: "Esc", label: "Back"},
+				{key: "E", label: "Edit"},
+				{key: "D", label: "Delete"},
+				{key: "Q", label: "Quit"},
+			})
+		case commandsDeleteConfirm:
+			return m.renderFooter([]footPart{
+				{key: "Y", label: "Confirm"},
+				{key: "N", label: "Cancel"},
+				{key: "Q", label: "Quit"},
+			})
+		case commandsEdit:
+			return m.renderFooter([]footPart{
+				{key: "Esc", label: "Cancel"},
+				{key: "Tab", label: "Field"},
+				{key: "^S", label: "Save"},
+				{key: "Q", label: "Quit"},
+			})
+		default:
+			return m.renderFooter([]footPart{{key: "Esc", label: "Back"}})
+		}
+	default:
+		return m.renderFooter([]footPart{
+			{key: "Esc", label: "Back"},
+			{key: "Q", label: "Quit"},
+		})
 	}
-	return "Esc Back    ← Back    Q Quit"
 }
