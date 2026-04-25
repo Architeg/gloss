@@ -1,18 +1,31 @@
 # Gloss
 
 <p align="left">
-  <img alt="Go" src="https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white">
-  <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-2f855a">
-  <img alt="Windows" src="https://img.shields.io/badge/Windows-not%20officially%20supported-6b7280">
-  <img alt="Version" src="https://img.shields.io/badge/version-v0.1.0-111827">
-  <img alt="License" src="https://img.shields.io/badge/license-MIT-2563eb">
+  <img alt="Go" src="https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white"/>
+  <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-2f855a"/>
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-not%20officially%20supported-6b7280"/>
+  <img alt="Version" src="https://img.shields.io/badge/version-v0.1.0-111827"/>
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-2563eb"/>
+  <a href="https://github.com/Architeg/gloss/commits/main">
+    <img alt="Commit activity" src="https://img.shields.io/github/commit-activity/m/Architeg/gloss?label=commits"/>
+  </a>
+  <a href="https://github.com/Architeg/gloss/stargazers">
+    <img alt="GitHub stars" src="https://img.shields.io/github/stars/Architeg/gloss?style=flat&label=stars"/>
+  </a>
+  <a href="https://worksfine.app">
+    <img alt="WorksFine.App" src="https://img.shields.io/badge/WorksFine.App-apps%20%26%20tools-111827"/>
+  </a>
 </p>
 
-A local-first CLI/TUI command glossary and alias helper for zsh-based workflows.
+A command glossary for your terminal.
 
-Gloss gives you one place to document useful commands, group them by tags, scan shell config files, import aliases/functions, and safely manage a dedicated alias block in `~/.zshrc`.
+Gloss helps you save useful shell commands, organize them with tags, scan your zsh config, and safely manage a dedicated alias block in `~/.zshrc`.
 
-It is intentionally small, keyboard-first, and terminal-native.
+It is small, local-first, keyboard-first, and terminal-native.
+
+<p align="center">
+  <img src="assets/gloss-logo-dark-h2.png" alt="Gloss logo" width="840"/>
+</p>
 
 ---
 
@@ -596,7 +609,7 @@ Possible future improvements:
 
 ## Support Gloss
 
-If Gloss saves you time or becomes part of your workflow, you can support the project here:
+If Gloss saves you time or becomes part of your workflow, you can [share it](https://twitter.com/intent/tweet?url=https://github.com/Architeg/gloss&text=Gloss%20%E2%80%94%20A%20small%20command%20glossary%20for%20your%20terminal.), maybe [give it a star ⭐](https://github.com/Architeg/gloss/stargazers), or support the project here:
 
 - [GitHub Sponsors](https://github.com/sponsors/Architeg)
 - [Ko-fi](https://ko-fi.com/example)
