@@ -38,7 +38,7 @@ fi
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
-echo "Downloading $url"
+echo "Downloading Gloss for ${os}-${arch}..."
 
 if ! curl -fsSL "$url" -o "$tmpdir/$asset"; then
   echo
@@ -56,8 +56,23 @@ unzip -q "$asset"
 mkdir -p "$INSTALL_DIR"
 install -m 0755 "${BIN_NAME}-${os}-${arch}" "$INSTALL_DIR/$BIN_NAME"
 
+if [[ -t 1 ]]; then
+  bold="$(printf '\033[1m')"
+  green="$(printf '\033[32m')"
+  yellow="$(printf '\033[33m')"
+  cyan="$(printf '\033[36m')"
+  reset="$(printf '\033[0m')"
+else
+  bold=""
+  green=""
+  yellow=""
+  cyan=""
+  reset=""
+fi
+
 echo
-echo "Gloss installed: $INSTALL_DIR/$BIN_NAME"
+echo "${green}✓${reset} Gloss installed:"
+echo "  ${bold}$INSTALL_DIR/$BIN_NAME${reset}"
 
 shell_rc="$HOME/.zshrc"
 if [[ "${SHELL:-}" == *"bash"* ]]; then
@@ -66,18 +81,19 @@ fi
 
 case ":$PATH:" in
   *":$INSTALL_DIR:"*)
+    echo
     echo "Run:"
-    echo "  gloss version"
+    echo "  ${cyan}gloss version${reset}"
     ;;
   *)
     echo
-    echo "Gloss is installed, but $INSTALL_DIR is not in your PATH."
+    echo "${yellow}!${reset} $INSTALL_DIR is not in your PATH."
     echo
-    echo "Add it now:"
-    echo "  echo 'export PATH=\"$INSTALL_DIR:\$PATH\"' >> \"$shell_rc\""
-    echo "  source \"$shell_rc\""
+    echo "Run these commands:"
+    echo "  ${cyan}echo 'export PATH=\"$INSTALL_DIR:\$PATH\"' >> \"$shell_rc\"${reset}"
+    echo "  ${cyan}source \"$shell_rc\"${reset}"
     echo
     echo "Then run:"
-    echo "  gloss version"
+    echo "  ${cyan}gloss version${reset}"
     ;;
 esac
