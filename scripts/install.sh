@@ -92,7 +92,7 @@ case ":$PATH:" in
     path_line="export PATH=\"$INSTALL_DIR:\$PATH\""
 
     echo
-    echo "${yellow}!${reset} $INSTALL_DIR is not active inyour PATH."
+    echo "${yellow}!${reset} $INSTALL_DIR is not active in your PATH."
 
     if grep -qxF "$path_line" "$shell_rc" 2>/dev/null; then
       echo "  PATH line already exists in $shell_rc."
@@ -110,7 +110,7 @@ case ":$PATH:" in
 
       reply="n"
       if [[ -r /dev/tty ]]; then
-        printf "%b" "${yellow}?${reset} Add Gloss to PATH now?${bold}[Y/n]${reset} " > /dev/tty
+        printf "%b" "${yellow}?${reset} Add Gloss to PATH now? ${bold}[Y/n]${reset} " > /dev/tty
         read -r reply < /dev/tty || reply="n"
       else
         echo "No interactive terminal available. Skipping PATHupdate."
@@ -121,7 +121,7 @@ case ":$PATH:" in
           echo
           echo "Adding Gloss to $shell_rc..."
 
-          if ! printf '\n%s\n%s\n' "$path_comment""$path_line" >> "$shell_rc"; then
+          if ! printf '\n%s\n%s\n' "$path_comment" "$path_line" >> "$shell_rc"; then
             echo
             echo "Could not update $shell_rc."
             echo "Add this manually:"
@@ -133,7 +133,7 @@ case ":$PATH:" in
 
           echo "${green}✓${reset} PATH line added."
           echo
-          echo "Reload your shell:"
+          echo "Please reload your shell:"
           echo "  ${cyan}source \"$shell_rc\"${reset}"
           ;;
         *)
