@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO="Architeg/gloss"
 VERSION="${VERSION:-latest}"
-INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 BIN_NAME="gloss"
 
 uname_s="$(uname -s)"
@@ -39,7 +39,18 @@ tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
 echo "Downloading $url"
-curl -fsSL "$url" -o "$tmpdir/$asset"
+
+if ! curl -fL "$url" -o "$tmpdir/$asset"; then
+  echo
+  echo "Failed to download release asset:"
+  echo "  $url"
+  echo
+  echo "Expected asset name:"
+  echo "  $asset"
+  echo
+  echo "Check that the GitHub release is published and contains this exact file."
+  exit 1
+fi
 
 cd "$tmpdir"
 unzip -q "$asset"
@@ -49,4 +60,20 @@ install -m 0755 "${BIN_NAME}-${os}-${arch}" "$INSTALL_DIR/$BIN_NAME"
 
 echo
 echo "Installed to $INSTALL_DIR/$BIN_NAME"
-echo "Run: gloss version"
+
+case ":$PATH:" in
+  *":$INSTALL_DIR:"*)
+    echo "Run: gloss version"
+    ;;
+  *)
+    echo
+    echo "Note: $INSTALL_DIR is not in your PATH."
+    echo "Add this to your shell config:"
+    echo
+    echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
+    echo
+    echo "Then reload your shell and run:"
+    echo
+    echo "  gloss version"
+    ;;
+esac
