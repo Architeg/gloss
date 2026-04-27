@@ -96,4 +96,4 @@ case ":$PATH:" in
     echo "Then run:"
     echo "  ${cyan}gloss version${reset}"
     ;;
-esac
+esac 
