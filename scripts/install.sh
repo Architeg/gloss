@@ -58,12 +58,14 @@ install -m 0755 "${BIN_NAME}-${os}-${arch}" "$INSTALL_DIR/$BIN_NAME"
 
 if [[ -t 1 ]]; then
   bold="$(printf '\033[1m')"
+  dim="$(printf '\033[2m')"
   green="$(printf '\033[32m')"
   yellow="$(printf '\033[33m')"
   cyan="$(printf '\033[36m')"
   reset="$(printf '\033[0m')"
 else
   bold=""
+  dim=""
   green=""
   yellow=""
   cyan=""
@@ -71,8 +73,8 @@ else
 fi
 
 echo
-echo "${green}✓${reset} Gloss installed:"
-echo "  ${bold}$INSTALL_DIR/$BIN_NAME${reset}"
+echo "${green}✓${reset} ${bold}Gloss installed${reset}"
+echo "  ${dim}$INSTALL_DIR/$BIN_NAME${reset}"
 
 shell_rc="$HOME/.zshrc"
 if [[ "${SHELL:-}" == *"bash"* ]]; then
@@ -82,21 +84,27 @@ fi
 case ":$PATH:" in
   *":$INSTALL_DIR:"*)
     echo
-    echo "Run:"
+    echo "${green}Next step${reset}"
     echo "  ${cyan}gloss version${reset}"
     ;;
   *)
-    path_comment="# --- Path to Gloss ---"
-    path_line="export PATH=\"$INSTALL_DIR:\$PATH\""
+    echo
+    echo "${yellow}! PATH setup required${reset}"
+    echo "  ${dim}$INSTALL_DIR is not in your PATH yet.${reset}"
+    echo
+    echo "${bold}1) Add Gloss to PATH${reset}"
+    cat <<EOF
+cat >> "$shell_rc" <<'EOPATH'
 
+# --- Path to Gloss ---
+export PATH="$INSTALL_DIR:\$PATH"
+EOPATH
+EOF
     echo
-    echo "${yellow}!${reset} $INSTALL_DIR is not in your PATH."
-    echo
-    echo "Run these commands:"
-    echo "  ${cyan}grep -qxF '$path_line' \"$shell_rc\" || {echo '$path_comment'; echo '$path_line'; } >>\"$shell_rc\"${reset}"
+    echo "${bold}2) Reload your shell${reset}"
     echo "  ${cyan}source \"$shell_rc\"${reset}"
     echo
-    echo "Then run:"
+    echo "${bold}3) Verify install${reset}"
     echo "  ${cyan}gloss version${reset}"
     ;;
 esac
