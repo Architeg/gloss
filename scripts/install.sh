@@ -101,8 +101,20 @@ case ":$PATH:" in
       echo "  ${cyan}source \"$shell_rc\"${reset}"
     else
       echo
-      printf "Add Gloss to PATH in %s? [Y/n] " "$shell_rc"
-      read -r reply
+      echo "${bold}PATH setup${reset}"
+      echo "Gloss can add this to $shell_rc:"
+      echo
+      echo "  ${dim}$path_comment${reset}"
+      echo "  ${cyan}$path_line${reset}"
+      echo
+
+      reply="n"
+      if [[ -r /dev/tty ]]; then
+        printf "%b" "${yellow}?${reset} Add Gloss to PATH now?${bold}[Y/n]${reset} " > /dev/tty
+        read -r reply < /dev/tty || reply="n"
+      else
+        echo "No interactive terminal available. Skipping PATHupdate."
+      fi
 
       case "$reply" in
         ""|y|Y|yes|YES)
@@ -130,7 +142,7 @@ case ":$PATH:" in
           echo
           echo "Add this manually if you want to run 'gloss'directly:"
           echo
-          echo "  ${cyan}$path_comment${reset}"
+          echo "  ${dim}$path_comment${reset}"
           echo "  ${cyan}$path_line${reset}"
           echo
           echo "Or run Gloss directly:"
