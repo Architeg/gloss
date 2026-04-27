@@ -40,15 +40,13 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 echo "Downloading $url"
 
-if ! curl -fL "$url" -o "$tmpdir/$asset"; then
+if ! curl -fsSL "$url" -o "$tmpdir/$asset"; then
   echo
   echo "Failed to download release asset:"
   echo "  $url"
   echo
   echo "Expected asset name:"
   echo "  $asset"
-  echo
-  echo "Check that the GitHub release is published and contains this exact file."
   exit 1
 fi
 
@@ -59,21 +57,27 @@ mkdir -p "$INSTALL_DIR"
 install -m 0755 "${BIN_NAME}-${os}-${arch}" "$INSTALL_DIR/$BIN_NAME"
 
 echo
-echo "Installed to $INSTALL_DIR/$BIN_NAME"
+echo "Gloss installed: $INSTALL_DIR/$BIN_NAME"
+
+shell_rc="$HOME/.zshrc"
+if [[ "${SHELL:-}" == *"bash"* ]]; then
+  shell_rc="$HOME/.bashrc"
+fi
 
 case ":$PATH:" in
   *":$INSTALL_DIR:"*)
-    echo "Run: gloss version"
+    echo "Run:"
+    echo "  gloss version"
     ;;
   *)
     echo
-    echo "Note: $INSTALL_DIR is not in your PATH."
-    echo "Add this to your shell config:"
+    echo "Gloss is installed, but $INSTALL_DIR is not in your PATH."
     echo
-    echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
+    echo "Add it now:"
+    echo "  echo 'export PATH=\"$INSTALL_DIR:\$PATH\"' >> \"$shell_rc\""
+    echo "  source \"$shell_rc\""
     echo
-    echo "Then reload your shell and run:"
-    echo
+    echo "Then run:"
     echo "  gloss version"
     ;;
 esac
