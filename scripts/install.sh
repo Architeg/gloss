@@ -88,23 +88,59 @@ case ":$PATH:" in
     echo "  ${cyan}gloss version${reset}"
     ;;
   *)
-    echo
-    echo "${yellow}! PATH setup required${reset}"
-    echo "  ${dim}$INSTALL_DIR is not in your PATH yet.${reset}"
-    echo
-    echo "${bold}1) Add Gloss to PATH${reset}"
-    cat <<EOF
-cat >> "$shell_rc" <<'EOPATH'
+    path_comment="# --- Path to Gloss ---"
+    path_line="export PATH=\"$INSTALL_DIR:\$PATH\""
 
-# --- Path to Gloss ---
-export PATH="$INSTALL_DIR:\$PATH"
-EOPATH
-EOF
     echo
-    echo "${bold}2) Reload your shell${reset}"
-    echo "  ${cyan}source \"$shell_rc\"${reset}"
+    echo "${yellow}!${reset} $INSTALL_DIR is not active inyour PATH."
+
+    if grep -qxF "$path_line" "$shell_rc" 2>/dev/null; then
+      echo "  PATH line already exists in $shell_rc."
+      echo
+      echo "Reload your shell:"
+      echo "  ${cyan}source \"$shell_rc\"${reset}"
+    else
+      echo
+      printf "Add Gloss to PATH in %s? [Y/n] " "$shell_rc"
+      read -r reply
+
+      case "$reply" in
+        ""|y|Y|yes|YES)
+          echo
+          echo "Adding Gloss to $shell_rc..."
+
+          if ! printf '\n%s\n%s\n' "$path_comment""$path_line" >> "$shell_rc"; then
+            echo
+            echo "Could not update $shell_rc."
+            echo "Add this manually:"
+            echo
+            echo "  $path_comment"
+            echo "  $path_line"
+            exit 1
+          fi
+
+          echo "${green}✓${reset} PATH line added."
+          echo
+          echo "Reload your shell:"
+          echo "  ${cyan}source \"$shell_rc\"${reset}"
+          ;;
+        *)
+          echo
+          echo "Skipped PATH update."
+          echo
+          echo "Add this manually if you want to run 'gloss'directly:"
+          echo
+          echo "  ${cyan}$path_comment${reset}"
+          echo "  ${cyan}$path_line${reset}"
+          echo
+          echo "Or run Gloss directly:"
+          echo "  ${cyan}$INSTALL_DIR/$BIN_NAMEversion${reset}"
+          ;;
+      esac
+    fi
+
     echo
-    echo "${bold}3) Verify install${reset}"
+    echo "Then run:"
     echo "  ${cyan}gloss version${reset}"
     ;;
 esac
