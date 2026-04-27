@@ -86,14 +86,17 @@ case ":$PATH:" in
     echo "  ${cyan}gloss version${reset}"
     ;;
   *)
+    path_comment="# --- Path to Gloss ---"
+    path_line="export PATH=\"$INSTALL_DIR:\$PATH\""
+
     echo
     echo "${yellow}!${reset} $INSTALL_DIR is not in your PATH."
     echo
     echo "Run these commands:"
-    echo "  ${cyan}echo 'export PATH=\"$INSTALL_DIR:\$PATH\"' >> \"$shell_rc\"${reset}"
+    echo "  ${cyan}grep -qxF '$path_line' \"$shell_rc\" || {echo '$path_comment'; echo '$path_line'; } >>\"$shell_rc\"${reset}"
     echo "  ${cyan}source \"$shell_rc\"${reset}"
     echo
     echo "Then run:"
     echo "  ${cyan}gloss version${reset}"
     ;;
-esac 
+esac
