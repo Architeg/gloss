@@ -95,11 +95,16 @@ Gloss is currently built around zsh-style shell integration, especially for alia
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Architeg/gloss/main/scripts/install.sh | bash
 ```
+By default, the script installs Gloss to `~/.local/bin/gloss`.
 
-This downloads the correct binary from GitHub Releases and installs it to:
+> [!NOTE]
+> If ~/.local/bin is not in your PATH, the installer will print the exact commands to add it to your shell config.
+
+Install a specific version:
 
 ```bash
-/usr/local/bin/gloss
+curl -fsSL https://raw.githubusercontent.com/Architeg/gloss/main/scripts/install.sh -o /tmp/gloss-install.sh
+VERSION=v0.1.0 bash /tmp/gloss-install.sh
 ```
 
 After installation:
@@ -165,6 +170,37 @@ sudo mv gloss-darwin-arm64 /usr/local/bin/gloss
 gloss version
 ```
 
+---
+## Uninstall
+
+If you installed Gloss with the install script, remove the binary:
+
+```bash
+rm -f "$HOME/.local/bin/gloss"
+```
+If you installed it system-wide:
+
+```bash
+sudo rm -f /usr/local/bin/gloss
+```
+
+If you installed with Homebrew:
+
+```bash
+brew uninstall gloss
+```
+
+Optional: remove local Gloss data and config:
+```bash
+rm -rf "$HOME/.config/gloss"
+```
+Optional: remove the managed alias block from your shell config manually:
+
+```zsh
+# >>> gloss aliases >>>
+# ...
+# <<< gloss aliases <<<
+```
 ---
 
 ## Quick start
