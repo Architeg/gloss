@@ -1,7 +1,7 @@
 <div align="center">
   <h1>Gloss</h1>
   <p><em>A command glossary for your terminal.</em></p>
-</div>
+</div><br/>
 
 <p align="center">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white"/>

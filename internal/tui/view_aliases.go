@@ -50,7 +50,7 @@ func (m *Model) aliasMenuView(width int) string {
 		line := lipgloss.JoinHorizontal(lipgloss.Top, gutter, labelSt.Render(item.title), "  ", descSt.Render(item.desc))
 		b.WriteString(lipgloss.NewStyle().Width(width).Render(line))
 		if i < len(aliasMenuHome)-1 {
-			b.WriteString("\n\n")
+			b.WriteString("\n")
 		}
 	}
 
@@ -97,7 +97,7 @@ func (m *Model) aliasListView(width int) string {
 	var b strings.Builder
 	b.WriteString(m.banner(width))
 	b.WriteString(m.sectionTitleBlock(width, "Managed aliases"))
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 
 	rows := m.managedAliasRows()
 	if len(rows) == 0 {
