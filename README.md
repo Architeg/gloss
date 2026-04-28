@@ -14,8 +14,8 @@
   <a href="https://github.com/Architeg/gloss/stargazers">
     <img alt="GitHub stars" src="https://img.shields.io/github/stars/Architeg/gloss?style=flat&label=stars"/>
   </a>
-  <a href="https://worksfine.app">
-    <img alt="WorksFine.App" src="https://img.shields.io/badge/WorksFine.App-more%20apps%20%26%20tools-111827"/>
+  <a href="https://worksfine.dev">
+    <img alt="WorksFine.dev" src="https://img.shields.io/badge/WorksFine.dev-more%20apps%20%26%20tools-111827"/>
   </a>
 </p>
 
@@ -24,7 +24,7 @@ Gloss helps you save useful shell commands, organize them with tags, scan your z
 It is small, local-first, keyboard-first, and terminal-native.
 
 <p align="center">
-  <img src="assets/gloss-logo-dark-h2.png" alt="Gloss logo" width="840"/>
+  <img src="assets/gloss-logo-dark-h2-home-screen.png" alt="Gloss logo" width="840"/>
 </p>
 
 ## ✅ Features
@@ -64,8 +64,7 @@ It is small, local-first, keyboard-first, and terminal-native.
 - Use the interactive TUI for browsing, editing, and importing
 - Use direct CLI commands for quick add/list/scan/edit/delete/version workflows
 
-
-## Platform support
+## ⚠️ Platform support
 
 - **Officially supported:** macOS
 - **Likely workable / experimental:** Linux
@@ -180,7 +179,6 @@ Optional: remove the managed alias block from your shell config manually:
 # ...
 # <<< gloss aliases <<<
 ```
----
 
 ## 🚀 Quick start
 
@@ -306,6 +304,10 @@ Main sections:
 
 The Home screen also includes support links.
 
+<p align="center">
+  <img src="assets/home-screen.png" alt="Gloss commands" width="840"/>
+</p>
+
 ### Navigation
 
 Gloss is keyboard-first.
@@ -337,6 +339,45 @@ You can:
 
 Entries without tags are shown under **Untagged**.
 
+```bash
+
+───────────────────────────── Commands ─────────────────────────────                          
+
+Search:   > substring in command or description                                              
+Tag:      > exact tag                                                                        
+
+
+› Category: Git
+───────────────────────
+
+  gs                    git status
+  ga                    git add .
+  gc                    git commit -m
+  gp                    git push                                                     
+
+
+› Category: Tools
+───────────────────────
+
+  nano                  Open nano editor
+  serve                 Start a local static file server
+  updatebrew            brew update && brew upgrade                                               
+
+
+› Category: Network
+───────────────────────
+
+  headers               curl -I
+  pingg                 ping github.com
+  myip                  curl ifconfig.me
+  dns                   dig
+  speed                 networkQuality
+
+
+
+/ Search │ F Filter │ E Edit │ D Delete │ A Add │ ↑↓ Move │ Enter Open │ Esc Back │ Q Quit  
+```
+
 ## 2. Add entry
 
 The **Add** screen lets you create a new glossary entry directly from the TUI.
@@ -354,6 +395,24 @@ git, shell, docker
 ```
 
 After saving, the entry appears in the **Commands** screen under its tag group. If no tags are added, the entry appears under **Untagged**.
+
+```bash
+
+──────────────────────────── Add entry ─────────────────────────────                          
+
+Command                                                                                       
+> command                                                                                     
+
+Description                                                                                   
+> description                                                                                 
+
+Tags                                                                                          
+> tags (comma-separated)                                                                      
+
+
+
+Esc Cancel │ Tab Field │ ^S Save │ Q Quit                       
+```
 
 ## 3. Scan and import
 
@@ -379,9 +438,56 @@ Imported items are intentionally added without tags by default.
 
 This keeps bulk import fast and avoids a prompt loop when scanning larger configs. You can tag them later if needed.
 
+```bash
+
+─────────────────────────────── Scan ───────────────────────────────                          
+
+Sources                                                                                       
+/Users/yourname/.zshrc                                                               
+
+12 importable — 3 already in glossary                                                         
+
+  [x] gs                  alias       git status
+  [x] ga                  alias       git add .
+  [x] gp                  alias       git push
+  [x] gl                  alias       git pull --rebase
+› [ ] ll                  alias       "ls -lah"
+  [x] hide                alias       chflags hidden
+  [x] nohide              alias       chflags nohidden
+
+  [x] mkcd                function    shell function
+  [x] serve               function    python3 -m http.server 8000
+  [ ] precmd              function    shell function
+  [ ] preexec             function    shell function
+
+  [x] deploy              script      ./scripts/  deploy.sh                                                                                
+
+
+
+↑↓ Move │ Space Toggle │ Enter Import │ R Rescan │ A All │ C Clear │ Esc Back │ Q Quit
+```
+
 ## 4. Managed aliases
 
 Gloss treats managed aliases as normal glossary entries with extra sync behavior.
+
+```bash
+
+───────────────────────────── Aliases ──────────────────────────────                          
+
+Shell file                                                                                    
+/Users/yourname/.zshrc                                                               
+
+› Add Alias               Store in Gloss; sync separately to shell                            
+  View Managed Aliases    Entries with managed alias flag                                     
+  Preview Sync Block      Exact block written on sync                                         
+  Sync to shell file      Backup if file exists, then write block                             
+
+
+
+
+↑↓ Move │ Enter Open │ Esc Back │ Q Quit
+```
 
 ### Add a managed alias
 
@@ -533,8 +639,6 @@ Typical runtime location:
 ~/.config/gloss/
 ```
 
----
-
 ## 🎯 Supported workflow
 
 Gloss is best suited for people who:
@@ -613,15 +717,13 @@ Possible future improvements:
 - `gloss --version` metadata with commit/date
 - more polished release automation
 
----
-
 ## ⭐ Support Gloss
 
 If Gloss saves you time or becomes part of your workflow, you can [share it](https://twitter.com/intent/tweet?url=https://github.com/Architeg/gloss&text=Gloss%20%E2%80%94%20A%20small%20command%20glossary%20for%20your%20terminal.), maybe [give it a star](https://github.com/Architeg/gloss/stargazers), or support the project here:
 
-- [GitHub Sponsors](https://github.com/sponsors/Architeg)
-- [Ko-fi](https://ko-fi.com/example)
-- [Buy Me a Coffee](https://buymeacoffee.com/example)
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub%20Sponsors-support-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Architeg)  
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-FFDD00?logo=buymeacoffee&logoColor=000000)](https://buymeacoffee.com/example)  
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-support-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/example)
 
 ## Contributing
 
@@ -633,6 +735,12 @@ If you contribute:
 - prefer simple and readable code
 - avoid unnecessary abstraction
 - avoid feature creep for the core workflow
+
+Thanks to everyone who contributes to Gloss. ❤️
+
+<a href="https://github.com/Architeg/gloss/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Architeg/gloss" alt="Gloss contributors"/>
+</a>
 
 ## License
 

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/mattn/go-runewidth"
 )
 
 func (m *Model) commandsMainView(width int) string {
@@ -32,42 +31,50 @@ func (m *Model) banner(width int) string {
 
 func browseColumnWidths(total int) (cmdW, gap, descW int) {
 	const gutter = 2
-	gap = 2
-	cmdW = 20
-	if total < 54 {
+
+	gap = 3
+	cmdW = 18
+
+	if total < 64 {
 		cmdW = 16
+		gap = 2
 	}
-	if total < 38 {
+	if total < 44 {
 		cmdW = 12
+		gap = 2
 	}
+
 	descW = total - gutter - cmdW - gap
-	if descW < 10 {
-		descW = 10
+	if descW < 12 {
+		descW = 12
 	}
+
 	return cmdW, gap, descW
 }
 
-func truncateVisual(s string, maxW int) string {
-	if maxW <= 0 {
-		return ""
+func wrapVisual(s string, width int) []string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		s = "—"
 	}
-	if lipgloss.Width(s) <= maxW {
-		return s
+	if width <= 0 {
+		return []string{s}
 	}
-	w := 0
-	var b strings.Builder
-	for _, r := range s {
-		rw := runewidth.RuneWidth(r)
-		if rw < 0 {
-			rw = 0
-		}
-		if w+rw > maxW-1 {
-			break
-		}
-		b.WriteRune(r)
-		w += rw
+
+	wrapped := lipgloss.NewStyle().Width(width).Render(s)
+	lines := strings.Split(wrapped, "\n")
+
+	if len(lines) == 0 {
+		return []string{"—"}
 	}
-	return b.String() + "…"
+	return lines
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func clamp(v, min, max int) int {
@@ -147,43 +154,56 @@ func (m *Model) commandsBrowseView(width int) string {
 		}
 
 		descRaw := strings.TrimSpace(row.Entry.Description)
-		descText := truncateVisual(descRaw, descW)
-		if descText == "" {
-			descText = truncateVisual("—", descW)
-		}
-		cmdPart := truncateVisual(row.Entry.Command, cmdW)
+		cmdLines := wrapVisual(row.Entry.Command, cmdW)
+		descLines := wrapVisual(descRaw, descW)
 
 		selected := i == m.browseCursor && m.cmdFocus == commandsFocusList
+		rowHeight := maxInt(len(cmdLines), len(descLines))
 
-		gutter := "  "
-		if selected {
-			gutter = m.styles.SelCaret.Render("› ")
+		for lineIdx := 0; lineIdx < rowHeight; lineIdx++ {
+			gutter := "  "
+			if selected && lineIdx == 0 {
+				gutter = m.styles.SelCaret.Render("› ")
+			}
+
+			cmdText := ""
+			if lineIdx < len(cmdLines) {
+				cmdText = cmdLines[lineIdx]
+			}
+
+			descText := ""
+			if lineIdx < len(descLines) {
+				descText = descLines[lineIdx]
+			}
+
+			var cmdCell, descCell string
+			if selected {
+				cmdCell = m.styles.CmdSelected.Width(cmdW).Render(cmdText)
+				descCell = m.styles.DescSelected.Width(descW).Render(descText)
+			} else {
+				cmdCell = m.styles.CmdCol.Width(cmdW).Render(cmdText)
+				descCell = m.styles.DescCol.Width(descW).Render(descText)
+			}
+
+			line := lipgloss.JoinHorizontal(
+				lipgloss.Top,
+				gutter,
+				cmdCell,
+				strings.Repeat(" ", gap),
+				descCell,
+			)
+
+			b.WriteString(line)
+
+			if lineIdx < rowHeight-1 {
+				b.WriteString("\n")
+			}
 		}
-
-		var cmdCell, descCell string
-		if selected {
-			cmdCell = m.styles.CmdSelected.Width(cmdW).Render(cmdPart)
-			descCell = m.styles.DescSelected.Width(descW).Render(descText)
-		} else {
-			cmdCell = m.styles.CmdCol.Width(cmdW).Render(cmdPart)
-			descCell = m.styles.DescCol.Width(descW).Render(descText)
-		}
-
-		line := lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			gutter,
-			cmdCell,
-			strings.Repeat(" ", gap),
-			descCell,
-		)
-
-		b.WriteString(line)
 
 		if i < len(m.cmdRows)-1 {
 			b.WriteString("\n")
 		}
 	}
-
 	return b.String()
 }
 
@@ -202,7 +222,7 @@ func (m *Model) filterStatusBlock(width int) string {
 	)
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		lipgloss.NewStyle().Width(width).Render(searchRow),
-		lipgloss.NewStyle().MarginTop(1).Width(width).Render(tagRow),
+		lipgloss.NewStyle().Width(width).Render(tagRow),
 	)
 	return m.styles.FilterWrap.Width(width).Render(inner)
 }
