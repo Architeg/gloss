@@ -1,9 +1,11 @@
-# Gloss
+<div align="center">
+  <h1>Gloss</h1>
+  <p><em>A command glossary for your terminal.</em></p>
+</div>
 
-<p align="left">
+<p align="center">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white"/>
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-2f855a"/>
-  <img alt="Windows" src="https://img.shields.io/badge/Windows-not%20officially%20supported-6b7280"/>
   <img alt="Version" src="https://img.shields.io/badge/version-v0.1.0-111827"/>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-2563eb"/>
   <a href="https://github.com/Architeg/gloss/commits/main">
@@ -13,11 +15,9 @@
     <img alt="GitHub stars" src="https://img.shields.io/github/stars/Architeg/gloss?style=flat&label=stars"/>
   </a>
   <a href="https://worksfine.app">
-    <img alt="WorksFine.App" src="https://img.shields.io/badge/WorksFine.App-apps%20%26%20tools-111827"/>
+    <img alt="WorksFine.App" src="https://img.shields.io/badge/WorksFine.App-more%20apps%20%26%20tools-111827"/>
   </a>
 </p>
-
-A command glossary for your terminal.
 
 Gloss helps you save useful shell commands, organize them with tags, scan your zsh config, and safely manage a dedicated alias block in `~/.zshrc`.
 
@@ -27,19 +27,7 @@ It is small, local-first, keyboard-first, and terminal-native.
   <img src="assets/gloss-logo-dark-h2.png" alt="Gloss logo" width="840"/>
 </p>
 
----
-
-## Screenshot
-
-Add your final screenshot or GIF here:
-
-```md
-![Gloss screenshot](./docs/screenshot-home.png)
-```
-
----
-
-## Features
+## ✅ Features
 
 ### Command glossary
 
@@ -76,21 +64,18 @@ Add your final screenshot or GIF here:
 - Use the interactive TUI for browsing, editing, and importing
 - Use direct CLI commands for quick add/list/scan/edit/delete/version workflows
 
----
 
 ## Platform support
 
 - **Officially supported:** macOS
 - **Likely workable / experimental:** Linux
-- **Not officially supported yet:** Windows
+- ❌ **Not officially supported yet:** Windows
 
 Gloss is currently built around zsh-style shell integration, especially for alias sync.
 
----
+## 💾 Installation
 
-## Installation
-
-### Option 1 — Install script
+### 🔽 Option 1 — Install script
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Architeg/gloss/main/scripts/install.sh | bash
@@ -113,9 +98,7 @@ After installation:
 gloss version
 ```
 
----
-
-### Option 2 — Homebrew
+### 🔽 Option 2 — Homebrew
 
 ```bash
 brew install Architeg/tap/gloss
@@ -127,9 +110,8 @@ Then:
 gloss version
 ```
 
-#### Homebrew note
-
-On some Homebrew setups, install may try to use a non-API path and behave unexpectedly.
+> [!NOTE]
+> On some Homebrew setups, install may try to use a non-API path and behave unexpectedly.
 
 Check this first:
 
@@ -155,9 +137,7 @@ You can also skip auto-update during install:
 HOMEBREW_NO_AUTO_UPDATE=1 brew install Architeg/tap/gloss
 ```
 
----
-
-### Option 3 — Manual install from GitHub Releases
+### 🔽 Option 3 — Manual install from GitHub Releases
 
 Download the correct asset for your platform from the Releases page, then install manually.
 
@@ -170,8 +150,7 @@ sudo mv gloss-darwin-arm64 /usr/local/bin/gloss
 gloss version
 ```
 
----
-## Uninstall
+## 🗑️ Uninstall
 
 If you installed Gloss with the install script, remove the binary:
 
@@ -203,7 +182,7 @@ Optional: remove the managed alias block from your shell config manually:
 ```
 ---
 
-## Quick start
+## 🚀 Quick start
 
 Launch the TUI:
 
@@ -225,8 +204,6 @@ gloss alias add
 gloss alias sync
 gloss alias delete <name>
 ```
-
----
 
 ## CLI commands
 
@@ -310,9 +287,7 @@ Sync managed aliases into your shell file:
 gloss alias sync
 ```
 
----
-
-## TUI overview
+## 🧩 TUI overview
 
 Run:
 
@@ -345,9 +320,8 @@ Common keys:
 
 Gloss also supports Vim-style navigation in some places where applicable.
 
----
 
-## Commands screen
+## 1. Commands screen
 
 The **Commands** screen is the main glossary browser.
 
@@ -363,9 +337,25 @@ You can:
 
 Entries without tags are shown under **Untagged**.
 
----
+## 2. Add entry
 
-## Scan and import
+The **Add** screen lets you create a new glossary entry directly from the TUI.
+
+Each entry includes:
+
+- command
+- description
+- tags
+
+Tags are comma-separated, for example:
+
+```text
+git, shell, docker
+```
+
+After saving, the entry appears in the **Commands** screen under its tag group. If no tags are added, the entry appears under **Untagged**.
+
+## 3. Scan and import
 
 Use the **Scan** screen in the TUI for the full workflow.
 
@@ -389,9 +379,7 @@ Imported items are intentionally added without tags by default.
 
 This keeps bulk import fast and avoids a prompt loop when scanning larger configs. You can tag them later if needed.
 
----
-
-## Managed aliases
+## 4. Managed aliases
 
 Gloss treats managed aliases as normal glossary entries with extra sync behavior.
 
@@ -454,8 +442,6 @@ gloss alias delete gs
 
 Then sync again, and it will disappear from the managed block in `~/.zshrc`.
 
----
-
 ## Safety and backups
 
 Gloss is conservative by design.
@@ -484,9 +470,7 @@ Gloss uses timestamped backups, for example:
 
 Old Gloss-created backups are pruned automatically to keep only a small recent set.
 
----
-
-## Settings
+## 5. Settings
 
 For v1, Settings is intentionally minimal and read-only.
 
@@ -498,8 +482,6 @@ It shows:
 - config file path
 
 If needed, you can edit config manually.
-
----
 
 ## Configuration
 
@@ -533,8 +515,6 @@ use_color: true
 - `scan_paths` — extra files/directories to scan
 - `use_color` — basic color preference
 
----
-
 ## Install paths
 
 ### Binary
@@ -555,7 +535,7 @@ Typical runtime location:
 
 ---
 
-## Supported workflow
+## 🎯 Supported workflow
 
 Gloss is best suited for people who:
 
@@ -564,8 +544,6 @@ Gloss is best suited for people who:
 - want a lightweight terminal UI instead of a docs file
 - want managed aliases in a dedicated safe block
 - use zsh on macOS or similar Unix-like environments
-
----
 
 ## What Gloss is not
 
@@ -580,9 +558,7 @@ Gloss is intentionally **not**:
 
 It is a small local utility for documenting and managing useful commands.
 
----
-
-## Development
+## 👨🏻‍💻 Development
 
 Clone the repo:
 
@@ -609,8 +585,6 @@ Check version:
 go run ./cmd/gloss version
 ```
 
----
-
 ## Release assets
 
 GitHub Releases provide the official binaries for:
@@ -625,8 +599,6 @@ These release assets are used by:
 - manual installs
 - the install script
 - the Homebrew formula
-
----
 
 ## Roadmap ideas
 
@@ -643,15 +615,13 @@ Possible future improvements:
 
 ---
 
-## Support Gloss
+## ⭐ Support Gloss
 
-If Gloss saves you time or becomes part of your workflow, you can [share it](https://twitter.com/intent/tweet?url=https://github.com/Architeg/gloss&text=Gloss%20%E2%80%94%20A%20small%20command%20glossary%20for%20your%20terminal.), maybe [give it a star ⭐](https://github.com/Architeg/gloss/stargazers), or support the project here:
+If Gloss saves you time or becomes part of your workflow, you can [share it](https://twitter.com/intent/tweet?url=https://github.com/Architeg/gloss&text=Gloss%20%E2%80%94%20A%20small%20command%20glossary%20for%20your%20terminal.), maybe [give it a star](https://github.com/Architeg/gloss/stargazers), or support the project here:
 
 - [GitHub Sponsors](https://github.com/sponsors/Architeg)
 - [Ko-fi](https://ko-fi.com/example)
 - [Buy Me a Coffee](https://buymeacoffee.com/example)
-
----
 
 ## Contributing
 
@@ -663,8 +633,6 @@ If you contribute:
 - prefer simple and readable code
 - avoid unnecessary abstraction
 - avoid feature creep for the core workflow
-
----
 
 ## License
 
