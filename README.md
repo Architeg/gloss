@@ -17,6 +17,9 @@
   <a href="https://worksfine.dev">
     <img alt="WorksFine.dev" src="https://img.shields.io/badge/WorksFine.dev-more%20apps%20%26%20tools-111827"/>
   </a>
+  <a href="#-support-gloss">
+    <img alt="Support Gloss" src="https://img.shields.io/badge/%E2%AD%90%20Support-Gloss-2563eb"/>
+  </a>
 </p>
 
 Gloss helps you save useful shell commands, organize them with tags, scan your zsh config, and safely manage a dedicated alias block in `~/.zshrc`.
@@ -722,8 +725,7 @@ Possible future improvements:
 If Gloss saves you time or becomes part of your workflow, you can [share it](https://twitter.com/intent/tweet?url=https://github.com/Architeg/gloss&text=Gloss%20%E2%80%94%20A%20small%20command%20glossary%20for%20your%20terminal.), maybe [give it a star](https://github.com/Architeg/gloss/stargazers), or support the project here:
 
 [![GitHub Sponsors](https://img.shields.io/badge/GitHub%20Sponsors-support-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Architeg)  
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-FFDD00?logo=buymeacoffee&logoColor=000000)](https://buymeacoffee.com/example)  
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-support-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/example)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-support-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/architeg)
 
 ## Contributing
 

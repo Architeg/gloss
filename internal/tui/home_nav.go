@@ -4,8 +4,7 @@ package tui
 const (
 	URLReadmeDocs     = "https://github.com/Architeg/gloss#readme"
 	URLGitHubSponsors = "https://github.com/sponsors/Architeg"
-	URLKoFi           = "https://ko-fi.com/example"
-	URLBuyMeACoffee   = "https://buymeacoffee.com/example"
+	URLKoFi           = "https://ko-fi.com/architeg"
 )
 
 // SupportLink is one entry in the home support row.
@@ -18,8 +17,7 @@ type SupportLink struct {
 // HomeSupportLinks is the secondary support row below the main menu.
 var HomeSupportLinks = []SupportLink{
 	{"›","GitHub Sponsors", URLGitHubSponsors},
-	{"›","Ko-fi", URLKoFi},
-	{"›","Buy Me a Coffee", URLBuyMeACoffee},
+	{"›","Ko-fi", URLKoFi},,
 }
 
 // homeSection tracks focus on the home screen.
