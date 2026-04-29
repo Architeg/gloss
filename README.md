@@ -1,6 +1,6 @@
 <div align="center">
   <h1>Gloss</h1>
-  <p><em>A command glossary for your terminal.</em></p>
+  <p><em>A local-first command glossary for your terminal.</em></p>
 </div><br/>
 
 <p align="center">
