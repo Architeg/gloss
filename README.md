@@ -22,7 +22,7 @@
   </a>
 </p>
 
-Gloss helps you save useful shell commands, organize them with tags, scan your zsh config, and safely manage a dedicated alias block in `~/.zshrc`.
+Gloss keeps reusable shell commands organized, searchable, and ready when you need them. Save commands, find them fast, and sync aliases safely on macOS and zsh.
 
 It is small, local-first, keyboard-first, and terminal-native.
 
