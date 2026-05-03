@@ -22,7 +22,7 @@
   </a>
 </p>
 
-Gloss keeps reusable shell commands organized, searchable, and ready when you need them. Save commands, find them fast, and sync aliases safely on macOS and zsh.
+Gloss keeps reusable shell commands organized, searchable, and ready when you need them. Save commands, find them fast, and sync aliases safely on macOS/zsh and Linux/bash setups.
 
 It is small, local-first, keyboard-first, and terminal-native.
 
@@ -41,7 +41,8 @@ It is small, local-first, keyboard-first, and terminal-native.
 
 ### Scan and import
 
-- Scan `~/.zshrc` and configured scan paths
+- Scan your detected shell config and configured scan paths
+- Supports zsh defaults (`~/.zshrc`) and bash defaults (`~/.bashrc`, `~/.bash_aliases`)
 - Detect aliases
 - Detect simple shell functions
 - Detect executable files in configured directories
@@ -50,8 +51,8 @@ It is small, local-first, keyboard-first, and terminal-native.
 ### Managed aliases
 
 - Add aliases directly from Gloss
-- Preview the generated managed alias block
-- Sync only the managed block into `~/.zshrc`
+- Preview and sync only the managed block into your configured shell file
+- Uses `~/.zshrc` for zsh and `~/.bashrc` for bash by default
 - Delete managed aliases cleanly
 - Avoid rewriting the shell file when nothing changed
 
@@ -69,11 +70,16 @@ It is small, local-first, keyboard-first, and terminal-native.
 
 ## ⚠️ Platform support
 
-- **Officially supported:** macOS
-- **Likely workable / experimental:** Linux
+- **Officially supported:** macOS with zsh
+- **Officially supported:** Linux with bash
 - ❌ **Not officially supported yet:** Windows
 
-Gloss is currently built around zsh-style shell integration, especially for alias sync.
+Gloss detects your shell when creating its first config:
+
+- zsh → `~/.zshrc`
+- bash → `~/.bashrc`, and scans `~/.bash_aliases` too
+
+Existing config is never overwritten automatically. Edit `~/.config/gloss/config.yaml` if you want to change shell or scan paths.
 
 ## 💾 Installation
 
@@ -175,12 +181,21 @@ Optional: remove local Gloss data and config:
 ```bash
 rm -rf "$HOME/.config/gloss"
 ```
-Optional: remove the managed alias block from your shell config manually:
+Optional: remove the managed alias block from your shell config manually from:
+
+- `~/.zshrc` or
+- `~/.bashrc`
 
 ```zsh
 # >>> gloss aliases >>>
 # ...
 # <<< gloss aliases <<<
+```
+If the install script added Gloss to your PATH, you can also remove this block from your shell config:
+
+```bash
+# --- Path to Gloss ---
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ## 🚀 Quick start
@@ -423,7 +438,9 @@ Use the **Scan** screen in the TUI for the full workflow.
 
 Gloss can detect:
 
-- aliases from `~/.zshrc`
+- aliases from your configured shell file
+- zsh aliases from `~/.zshrc`
+- bash aliases from `~/.bashrc` and `~/.bash_aliases`
 - aliases/functions from configured scan files
 - executable files from configured scan directories
 
@@ -505,7 +522,7 @@ Or via CLI:
 gloss alias add
 ```
 
-This stores the alias in Gloss but does **not** immediately write to `~/.zshrc`.
+This stores the alias in Gloss but does **not** immediately write to your shell file.
 
 ### Preview sync block
 
@@ -549,7 +566,7 @@ Delete it from the TUI managed aliases list or via CLI:
 gloss alias delete gs
 ```
 
-Then sync again, and it will disappear from the managed block in `~/.zshrc`.
+Then sync again, and it will disappear from the managed block in your configured shell file.
 
 ## Safety and backups
 
@@ -575,6 +592,7 @@ Gloss uses timestamped backups, for example:
 
 ```bash
 ~/.zshrc.gloss.bak-20260423-223500
+~/.bashrc.gloss.bak-20260423-223500
 ```
 
 Old Gloss-created backups are pruned automatically to keep only a small recent set.
@@ -609,11 +627,23 @@ Typical files:
 
 Example config:
 
+Example config for macOS/zsh:
+
 ```yaml
 shell_file: /Users/yourname/.zshrc
 storage_path: /Users/yourname/.config/gloss
 scan_paths:
   - /Users/yourname/.zshrc
+use_color: true
+```
+Example config for Linux/bash:
+
+```yaml
+shell_file: /home/yourname/.bashrc
+storage_path: /home/yourname/.config/gloss
+scan_paths:
+  - /home/yourname/.bashrc
+  - /home/yourname/.bash_aliases
 use_color: true
 ```
 
@@ -650,7 +680,7 @@ Gloss is best suited for people who:
 - want a simple personal command glossary
 - want a lightweight terminal UI instead of a docs file
 - want managed aliases in a dedicated safe block
-- use zsh on macOS or similar Unix-like environments
+- use zsh on macOS or bash on Linux
 
 ## What Gloss is not
 
@@ -714,7 +744,7 @@ Possible future improvements:
 - cleaner CLI output formatting
 - editable settings in TUI
 - richer alias management
-- better Linux shell integration
+- broader shell support beyond zsh/bash
 - shell completions
 - import/export helpers
 - `gloss --version` metadata with commit/date

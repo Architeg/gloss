@@ -79,13 +79,36 @@ func Load() (*model.Config, error) {
 }
 
 func defaults(home string) *model.Config {
-	zshrc := filepath.Join(home, ".zshrc")
+	shellFile, scanPaths := defaultShellPaths(home)
+
 	store := filepath.Join(home, relConfigDir)
 	return &model.Config{
-		ShellFile:   zshrc,
+		ShellFile:   shellFile,
 		StoragePath: store,
-		ScanPaths:   []string{zshrc},
+		ScanPaths:   scanPaths,
 		UseColor:    true,
+	}
+}
+
+func defaultShellPaths(home string) (string, []string) {
+	shell := os.Getenv("SHELL")
+	base := filepath.Base(shell)
+
+	switch base {
+	case "bash":
+		bashrc := filepath.Join(home, ".bashrc")
+		bashAliases := filepath.Join(home, ".bash_aliases")
+		return bashrc, []string{bashrc, bashAliases}
+
+	case "zsh":
+		zshrc := filepath.Join(home, ".zshrc")
+		return zshrc, []string{zshrc}
+
+	default:
+		// Safe fallback for unusual shells.
+		// Gloss v1 officially targets zsh and bash-style alias files.
+		zshrc := filepath.Join(home, ".zshrc")
+		return zshrc, []string{zshrc}
 	}
 }
 
