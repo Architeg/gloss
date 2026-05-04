@@ -3,6 +3,8 @@
   <p><em>A local-first command glossary for your terminal.</em></p>
 </div><br/>
 
+<!-- Badges-->
+
 <p align="center">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white"/>
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-2f855a"/>
@@ -21,6 +23,8 @@
     <img alt="Support Gloss" src="https://img.shields.io/badge/%E2%AD%90%20Support-Gloss-2563eb"/>
   </a>
 </p>
+
+<!-- Featured badges-->
 
 <p align="center">
   <a href="https://www.uneed.best/tool/gloss">
@@ -788,9 +792,11 @@ If you contribute:
 
 Thanks to everyone who contributes to Gloss. ❤️
 
-<a href="https://github.com/Architeg/gloss/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=Architeg/gloss" alt="Gloss contributors"/>
-</a>
+<p align="left">
+  <a href="https://github.com/Architeg/gloss/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=Architeg/gloss" alt="Gloss contributors" />
+  </a>
+</p>
 
 ## License
 
