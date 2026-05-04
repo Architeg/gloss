@@ -22,6 +22,12 @@
   </a>
 </p>
 
+<p align="center">
+  <a href="https://www.uneed.best/tool/gloss">
+    <img src="https://www.uneed.best/EMBED3.png" alt="Launching Soon on Uneed" width="150" />
+  </a>
+</p>
+
 Gloss keeps reusable shell commands organized, searchable, and ready when you need them. Save commands, find them fast, and sync aliases safely on macOS/zsh and Linux/bash setups.
 
 It is small, local-first, keyboard-first, and terminal-native.
