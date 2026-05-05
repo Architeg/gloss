@@ -31,10 +31,6 @@
     <img src="https://www.uneed.best/EMBED1B.png" alt="Published on Uneed" height="44" />
   </a>
   &nbsp;
-  <a href="https://twelve.tools">
-    <img src="https://twelve.tools/badge0-dark.svg" alt="Featured on Twelve Tools" height="38" />
-  </a>
-  &nbsp;
   <a href="https://www.producthunt.com/products/gloss?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-gloss">
     <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1138925&theme=dark&t=1777916961103" alt="Gloss - A command glossary for your terminal | Product Hunt" height="40" />
   </a>
@@ -48,13 +44,11 @@ Gloss keeps reusable shell commands organized, searchable, and ready when you ne
 
 I built it because I kept re-searching the same commands and spreading aliases across shell history, notes, and config files. Gloss gives those commands a small local home: descriptions, tags, TUI search, config scanning, and safe managed alias sync.
 
-It is small, local-first, keyboard-first, and terminal-native.
-
 <p align="center">
   <img src="assets/gloss-logo-dark-h2-home-screen.png" alt="Gloss logo" width="840"/>
 </p>
 
-## ✅ Features
+## Features
 
 - Save shell commands with descriptions and tags
 - Browse, search, filter, add, edit, and delete entries in a TUI
@@ -79,9 +73,9 @@ Default shell files:
 
 Existing config is never overwritten automatically. You can edit `~/.config/gloss/config.yaml` if you want to change shell or scan paths.
 
-## 💾 Installation
+## Installation
 
-### 🔽 Option 1 - Install script
+### Option 1 - Install script
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Architeg/gloss/main/scripts/install.sh | bash
@@ -102,7 +96,7 @@ curl -fsSL https://raw.githubusercontent.com/Architeg/gloss/main/scripts/install
 VERSION=v0.1.0 bash /tmp/gloss-install.sh
 ```
 
-### 🔽 Option 2 - Homebrew
+### Option 2 - Homebrew
 
 ```bash
 brew install Architeg/tap/gloss
@@ -127,7 +121,7 @@ You can also skip Homebrew auto-update during install:
 HOMEBREW_NO_AUTO_UPDATE=1 brew install Architeg/tap/gloss
 ```
 
-### 🔽 Option 3 - Manual install
+### Option 3 - Manual install
 
 Download the correct asset from [GitHub Releases](https://github.com/Architeg/gloss/releases).
 
@@ -140,7 +134,7 @@ sudo mv gloss-darwin-arm64 /usr/local/bin/gloss
 gloss version
 ```
 
-## 🚀 Quick start
+## Quick start
 
 Launch the TUI:
 
@@ -164,7 +158,7 @@ gloss alias sync
 gloss alias delete <name>
 ```
 
-## 🧩 TUI overview
+## TUI overview
 
 Main sections:
 
@@ -358,7 +352,7 @@ scan_paths:
 use_color: true
 ```
 
-## 🗑️ Uninstall
+## Uninstall
 
 Remove the binary:
 
@@ -405,7 +399,7 @@ Gloss is not a shell replacement, history analyzer, package manager, AI command 
 
 It is a small local utility for documenting, finding, importing, and safely syncing useful shell commands.
 
-## 👨🏻‍💻 Development
+## Development
 
 Clone the repo:
 
