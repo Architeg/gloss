@@ -13,11 +13,11 @@
   <a href="https://github.com/Architeg/gloss/commits/main">
     <img alt="Commit activity" src="https://img.shields.io/github/commit-activity/m/Architeg/gloss?label=commits"/>
   </a>
-  <a href="https://github.com/Architeg/gloss/stargazers">
-    <img alt="GitHub stars" src="https://img.shields.io/github/stars/Architeg/gloss?style=flat&label=stars"/>
-  </a>
+<a href="https://github.com/Architeg/gloss/stargazers">
+  <img alt="GitHub stars" src="https://img.shields.io/github/stars/Architeg/gloss?label=Stars&style=flat" />
+</a>
   <a href="https://worksfine.dev">
-    <img alt="WorksFine.dev" src="https://img.shields.io/badge/WorksFine.dev-more%20apps%20%26%20tools-111827"/>
+    <img alt="WorksFine.dev" src="https://img.shields.io/badge/WorksFine.dev-Apps%20%26%20Tools-111827"/>
   </a>
   <a href="#-support-gloss">
     <img alt="Support Gloss" src="https://img.shields.io/badge/%E2%AD%90%20Support-Gloss-2563eb"/>
