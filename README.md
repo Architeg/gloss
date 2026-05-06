@@ -35,8 +35,8 @@
     <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1138925&theme=dark&t=1777916961103" alt="Gloss - A command glossary for your terminal | Product Hunt" height="40" />
   </a>
   &nbsp;
-  <a href="https://wired.business">
-    <img src="https://wired.business/badge0-dark.svg" alt="Featured on Wired Business" height="38" />
+  <a href="https://www.shipit.buzz/products/gloss?ref=badge">
+    <img src="https://www.shipit.buzz/api/products/gloss/badge?theme=dark" alt="Featured on Shipit" height="38" />
   </a>
 </p>
 
