@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/valeriybagrintsev/gloss/internal/model"
+	"github.com/Architeg/gloss/internal/model"
 )
 
 // ResolveSources returns unique absolute paths to scan. ~/.zshrc is always included first,

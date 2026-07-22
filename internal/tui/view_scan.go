@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
-	"github.com/valeriybagrintsev/gloss/internal/model"
+	"github.com/Architeg/gloss/internal/model"
 )
 
 func scanRowWidths(width int) (gutter, markW, cmdW, typW, gap, detailW int) {

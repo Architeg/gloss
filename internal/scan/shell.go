@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/valeriybagrintsev/gloss/internal/model"
+	"github.com/Architeg/gloss/internal/model"
 )
 
 var (

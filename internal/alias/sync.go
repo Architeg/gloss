@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/valeriybagrintsev/gloss/internal/model"
+	"github.com/Architeg/gloss/internal/model"
 )
 
 // Result reports what happened during a sync.

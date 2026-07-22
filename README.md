@@ -6,7 +6,7 @@
 <!-- Badges-->
 
 <p align="center">
-  <img alt="Go" src="https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white"/>
+  <img alt="Go" src="https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white"/>
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-2f855a"/>
   <img alt="Version" src="https://img.shields.io/badge/version-v0.1.0-111827"/>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-2563eb"/>

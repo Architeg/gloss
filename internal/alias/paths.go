@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/valeriybagrintsev/gloss/internal/model"
+	"github.com/Architeg/gloss/internal/model"
 )
 
 // ResolveShellPath returns the absolute path to the zshrc (or configured shell file).

@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/valeriybagrintsev/gloss/internal/model"
+	"github.com/Architeg/gloss/internal/model"
 )
 
 // Result is the outcome of a scan pass.

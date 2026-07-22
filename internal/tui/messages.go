@@ -5,11 +5,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/valeriybagrintsev/gloss/internal/alias"
-	"github.com/valeriybagrintsev/gloss/internal/model"
-	"github.com/valeriybagrintsev/gloss/internal/openurl"
-	"github.com/valeriybagrintsev/gloss/internal/scan"
-	"github.com/valeriybagrintsev/gloss/internal/storage"
+	"github.com/Architeg/gloss/internal/alias"
+	"github.com/Architeg/gloss/internal/model"
+	"github.com/Architeg/gloss/internal/openurl"
+	"github.com/Architeg/gloss/internal/scan"
+	"github.com/Architeg/gloss/internal/storage"
 )
 
 type entriesMsg struct {

@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/valeriybagrintsev/gloss/internal/model"
+	"github.com/Architeg/gloss/internal/model"
 )
 
 // Block markers in ~/.zshrc (or configured shell file).

@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/valeriybagrintsev/gloss/internal/alias"
+	"github.com/Architeg/gloss/internal/alias"
 )
 
 func (m *Model) aliasesMainView(width int) string {

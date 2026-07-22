@@ -12,9 +12,9 @@ import (
 
 	"github.com/mattn/go-runewidth"
 
-	"github.com/valeriybagrintsev/gloss/internal/alias"
-	"github.com/valeriybagrintsev/gloss/internal/model"
-	"github.com/valeriybagrintsev/gloss/internal/storage"
+	"github.com/Architeg/gloss/internal/alias"
+	"github.com/Architeg/gloss/internal/model"
+	"github.com/Architeg/gloss/internal/storage"
 )
 
 func runAddCLI(repo *storage.EntryRepo) error {

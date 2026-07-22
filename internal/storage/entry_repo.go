@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/valeriybagrintsev/gloss/internal/model"
+	"github.com/Architeg/gloss/internal/model"
 )
 
 // EntryRepo persists glossary entries.

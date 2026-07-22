@@ -11,11 +11,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/valeriybagrintsev/gloss/internal/config"
-	"github.com/valeriybagrintsev/gloss/internal/model"
-	"github.com/valeriybagrintsev/gloss/internal/scan"
-	"github.com/valeriybagrintsev/gloss/internal/storage"
-	"github.com/valeriybagrintsev/gloss/internal/tui"
+	"github.com/Architeg/gloss/internal/config"
+	"github.com/Architeg/gloss/internal/model"
+	"github.com/Architeg/gloss/internal/scan"
+	"github.com/Architeg/gloss/internal/storage"
+	"github.com/Architeg/gloss/internal/tui"
 )
 
 var (

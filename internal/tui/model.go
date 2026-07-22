@@ -9,8 +9,8 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/valeriybagrintsev/gloss/internal/model"
-	"github.com/valeriybagrintsev/gloss/internal/storage"
+	"github.com/Architeg/gloss/internal/model"
+	"github.com/Architeg/gloss/internal/storage"
 )
 
 // Options carries dependencies created during app bootstrap.

@@ -7,8 +7,8 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/valeriybagrintsev/gloss/internal/alias"
-	"github.com/valeriybagrintsev/gloss/internal/model"
+	"github.com/Architeg/gloss/internal/alias"
+	"github.com/Architeg/gloss/internal/model"
 )
 
 type aliasPhase int
