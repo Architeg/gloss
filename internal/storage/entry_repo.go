@@ -27,6 +27,12 @@ const (
 	BulkTagRemove
 )
 
+// BulkTagChange is one ordered tag mutation in a transactional bulk update.
+type BulkTagChange struct {
+	Operation BulkTagOperation
+	Tag       string
+}
+
 type sqlExecutor interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }
@@ -239,15 +245,30 @@ WHERE id = ?`,
 
 // BulkUpdateTag applies one tag operation to all unique IDs atomically.
 func (r *EntryRepo) BulkUpdateTag(ctx context.Context, ids []int64, operation BulkTagOperation, tag string) error {
+	return r.BulkUpdateTags(ctx, ids, []BulkTagChange{{Operation: operation, Tag: tag}})
+}
+
+// BulkUpdateTags applies ordered tag operations to all unique IDs atomically.
+func (r *EntryRepo) BulkUpdateTags(ctx context.Context, ids []int64, changes []BulkTagChange) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	normalized := model.NormalizeTags([]string{tag})
-	if len(normalized) == 0 {
-		return fmt.Errorf("tag is required")
+	normalizedChanges := make([]BulkTagChange, 0, len(changes))
+	for i, change := range changes {
+		normalized := model.NormalizeTags([]string{change.Tag})
+		if len(normalized) == 0 {
+			return fmt.Errorf("bulk tag change %d: tag is required", i+1)
+		}
+		if change.Operation < BulkTagSetPrimary || change.Operation > BulkTagRemove {
+			return fmt.Errorf("bulk tag change %d: invalid operation %d", i+1, change.Operation)
+		}
+		normalizedChanges = append(normalizedChanges, BulkTagChange{
+			Operation: change.Operation,
+			Tag:       normalized[0],
+		})
 	}
-	if operation < BulkTagSetPrimary || operation > BulkTagRemove {
-		return fmt.Errorf("invalid bulk tag operation %d", operation)
+	if len(normalizedChanges) == 0 {
+		return nil
 	}
 
 	unique := make([]int64, 0, len(ids))
@@ -280,8 +301,10 @@ func (r *EntryRepo) BulkUpdateTag(ctx context.Context, ids []int64, operation Bu
 				return fmt.Errorf("decode tags for entry %d: %w", id, err)
 			}
 		}
-		current := model.NormalizeTags(stored)
-		updated := applyBulkTagOperation(current, operation, normalized[0])
+		updated := model.NormalizeTags(stored)
+		for _, change := range normalizedChanges {
+			updated = applyBulkTagOperation(updated, change.Operation, change.Tag)
+		}
 		if slices.Equal(stored, updated) {
 			continue
 		}

@@ -13,6 +13,7 @@ const (
 	commandsDetail
 	commandsDeleteConfirm
 	commandsEdit
+	commandsBulkTags
 )
 
 type commandsFocus int

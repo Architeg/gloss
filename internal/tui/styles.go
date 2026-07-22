@@ -177,15 +177,15 @@ func newStyles() Styles {
 }
 
 func contentWidth(termWidth int) int {
-	w := maxBodyWidth
-	if termWidth > 0 {
-		inner := termWidth - 6
-		if inner > 0 && inner < w {
-			w = inner
-		}
+	if termWidth <= 0 {
+		return 0
 	}
-	if w < 24 {
-		w = 24
+	inner := termWidth - 6
+	if inner <= 0 {
+		return 0
 	}
-	return w
+	if inner < maxBodyWidth {
+		return inner
+	}
+	return maxBodyWidth
 }

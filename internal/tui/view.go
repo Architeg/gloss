@@ -223,6 +223,12 @@ func (m *Model) footerContent() string {
 				})
 			}
 			return m.renderFooter([]footPart{
+				{key: "Space", label: "Select"},
+				{key: "T", label: "Tags"},
+				{key: "C", label: "Copy"},
+				{key: "Esc", label: "Back"},
+				{key: "Q", label: "Quit"},
+				{key: "^A", label: "Visible"},
 				{key: "/", label: "Search"},
 				{key: "F", label: "Filter"},
 				{key: "E", label: "Edit"},
@@ -233,8 +239,6 @@ func (m *Model) footerContent() string {
 				{key: "Home/End", label: "Bounds"},
 				{key: "[ ]", label: "Groups"},
 				{key: "Enter", label: "Open"},
-				{key: "Esc", label: "Back"},
-				{key: "Q", label: "Quit"},
 			})
 		case commandsDetail:
 			return m.renderFooter([]footPart{
@@ -254,6 +258,13 @@ func (m *Model) footerContent() string {
 				{key: "Esc", label: "Cancel"},
 				{key: "Tab", label: "Field"},
 				{key: "^S", label: "Save"},
+				{key: "Q", label: "Quit"},
+			})
+		case commandsBulkTags:
+			return m.renderFooter([]footPart{
+				{key: "Esc", label: "Cancel"},
+				{key: "Tab", label: "Field"},
+				{key: "^S", label: "Apply"},
 				{key: "Q", label: "Quit"},
 			})
 		default:

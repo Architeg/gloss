@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -49,9 +50,32 @@ type openURLMsg struct {
 	err error
 }
 
+type copyCommandMsg struct {
+	err error
+}
+
+type bulkTagsMsg struct {
+	err error
+}
+
 func openURLCmd(url string) tea.Cmd {
 	return func() tea.Msg {
 		return openURLMsg{err: openurl.Open(url)}
+	}
+}
+
+func copyCommandCmd(writer interface{ WriteText(string) error }, command string) tea.Cmd {
+	return func() tea.Msg {
+		return copyCommandMsg{err: writer.WriteText(command)}
+	}
+}
+
+func bulkTagsCmd(repo *storage.EntryRepo, ids []int64, changes []storage.BulkTagChange) tea.Cmd {
+	return func() tea.Msg {
+		if repo == nil {
+			return bulkTagsMsg{err: errors.New("storage is unavailable")}
+		}
+		return bulkTagsMsg{err: repo.BulkUpdateTags(context.Background(), ids, changes)}
 	}
 }
 

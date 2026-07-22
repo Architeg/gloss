@@ -10,14 +10,16 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/Architeg/gloss/internal/alias"
+	"github.com/Architeg/gloss/internal/clipboard"
 	"github.com/Architeg/gloss/internal/model"
 	"github.com/Architeg/gloss/internal/storage"
 )
 
 // Options carries dependencies created during app bootstrap.
 type Options struct {
-	Config *model.Config
-	Repo   *storage.EntryRepo
+	Config    *model.Config
+	Repo      *storage.EntryRepo
+	Clipboard clipboard.Writer
 }
 
 // Model is the root Bubble Tea model for Gloss.
@@ -34,18 +36,23 @@ type Model struct {
 
 	config *model.Config
 	repo   *storage.EntryRepo
+	clip   clipboard.Writer
 
 	allEntries []model.Entry
 	errBanner  string
 
-	cmdPhase     commandsPhase
-	cmdFocus     commandsFocus
-	cmdRows      []cmdRow
-	browseCursor int
-	browseOffset int
-	selectedID   int64
-	restoreID    int64
-	detailEntry  model.Entry
+	cmdPhase      commandsPhase
+	cmdFocus      commandsFocus
+	cmdRows       []cmdRow
+	browseCursor  int
+	browseOffset  int
+	selectedID    int64
+	restoreID     int64
+	detailEntry   model.Entry
+	multiSelected map[int64]struct{}
+	bulkTagForm   bulkTagFormState
+	bulkTargetIDs []int64
+	commandStatus commandStatus
 
 	searchTI textinput.Model
 	tagTI    textinput.Model
@@ -77,27 +84,34 @@ func New(opts Options) tea.Model {
 	cw := contentWidth(80)
 	search := textinput.New()
 	search.Placeholder = "substring in command or description"
-	search.Width = max(cw-8, 14)
+	search.Width = inputWidth(cw - 10)
 	search.Blur()
 
 	tag := textinput.New()
 	tag.Placeholder = "exact tag"
-	tag.Width = max(cw-8, 14)
+	tag.Width = inputWidth(cw - 10)
 	tag.Blur()
 
 	m := &Model{
-		styles:    newStyles(),
-		keys:      newBindings(),
-		screen:    ScreenHome,
-		config:    opts.Config,
-		repo:      opts.Repo,
-		searchTI:  search,
-		tagTI:     tag,
-		form:      newFormState(cw),
-		aliasForm: newAliasFormState(cw),
+		styles:        newStyles(),
+		keys:          newBindings(),
+		screen:        ScreenHome,
+		config:        opts.Config,
+		repo:          opts.Repo,
+		clip:          opts.Clipboard,
+		searchTI:      search,
+		tagTI:         tag,
+		form:          newFormState(cw),
+		aliasForm:     newAliasFormState(cw),
+		bulkTagForm:   newBulkTagFormState(cw),
+		multiSelected: make(map[int64]struct{}),
+	}
+	if m.clip == nil {
+		m.clip = clipboard.System{}
 	}
 	m.form.applyTextInputTheme(m.styles)
 	m.aliasForm.applyTheme(m.styles)
+	m.bulkTagForm.applyTheme(m.styles)
 	return m
 }
 
@@ -114,10 +128,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		cw := contentWidth(msg.Width)
 		m.form.resizeInputs(cw)
-		m.searchTI.Width = max(cw-8, 14)
-		m.tagTI.Width = max(cw-8, 14)
+		m.searchTI.Width = inputWidth(cw - 10)
+		m.tagTI.Width = inputWidth(cw - 10)
 		m.aliasForm.resize(cw)
+		m.bulkTagForm.resize(cw)
 		m.ensureBrowseVisible(true)
+		return m, nil
+
+	case commandStatusExpiredMsg:
+		m.expireCommandStatus(msg)
 		return m, nil
 
 	case entriesMsg:
@@ -127,6 +146,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.errBanner = ""
 		m.allEntries = msg.entries
+		m.pruneMultiSelection()
 		m.rebuildBrowse()
 		if m.screen == ScreenAliases && m.aliasPhase == aliasPhaseView {
 			rows := m.managedAliasRows()
@@ -170,8 +190,26 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.deleteFromBrowse = false
 		m.cmdPhase = commandsBrowse
+		delete(m.multiSelected, m.detailEntry.ID)
 		m.deleteReset()
-		return m, loadEntriesCmd(m.repo)
+		return m, tea.Batch(m.setCommandStatus("Deleted", false), loadEntriesCmd(m.repo))
+
+	case copyCommandMsg:
+		if msg.err != nil {
+			return m, m.setCommandStatus("Copy failed: "+msg.err.Error(), true)
+		}
+		return m, m.setCommandStatus("Copied", false)
+
+	case bulkTagsMsg:
+		m.cmdPhase = commandsBrowse
+		m.bulkTagForm.blurAll()
+		m.bulkTargetIDs = nil
+		m.errBanner = ""
+		if msg.err != nil {
+			return m, m.setCommandStatus("Tags update failed: "+msg.err.Error(), true)
+		}
+		statusCmd := m.setCommandStatus("Tags updated", false)
+		return m, tea.Batch(statusCmd, loadEntriesCmd(m.repo))
 
 	case scanMsg:
 		m.scanLoading = false
@@ -282,7 +320,7 @@ func (m *Model) afterSave() (tea.Model, tea.Cmd) {
 			m.cmdFocus = commandsFocusList
 			m.form.prepareAdd()
 			m.form.blurAll()
-			return m, loadEntriesCmd(m.repo)
+			return m, tea.Batch(m.setCommandStatus("Saved", false), loadEntriesCmd(m.repo))
 		}
 		m.screen = ScreenHome
 		m.form.prepareAdd()
@@ -305,7 +343,7 @@ func (m *Model) afterSave() (tea.Model, tea.Cmd) {
 		} else {
 			m.cmdPhase = commandsDetail
 		}
-		return m, loadEntriesCmd(m.repo)
+		return m, tea.Batch(m.setCommandStatus("Saved", false), loadEntriesCmd(m.repo))
 	}
 	return m, loadEntriesCmd(m.repo)
 }
@@ -507,6 +545,8 @@ func (m *Model) updateCommands(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.cmdPhase {
 	case commandsEdit:
 		return m.updateForm(msg, true)
+	case commandsBulkTags:
+		return m.updateBulkTagForm(msg)
 	case commandsBrowse:
 		if m.cmdFocus != commandsFocusList {
 			return m.updateCommandsFilters(msg)
@@ -569,6 +609,33 @@ func (m *Model) updateBrowseKeys(km tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cmdFocus = commandsFocusTag
 		m.tagTI.Focus()
 		return m, textinput.Blink
+	case km.Type == tea.KeySpace:
+		if !m.toggleFocusedSelection() {
+			return m, m.setCommandStatus("No selectable command", true)
+		}
+		m.ensureBrowseVisible(true)
+		return m, nil
+	case km.Type == tea.KeyCtrlA:
+		if !m.toggleVisibleSelection() {
+			return m, m.setCommandStatus("No selectable commands", true)
+		}
+		m.ensureBrowseVisible(true)
+		return m, nil
+	case strings.EqualFold(km.String(), "t"):
+		ids := m.selectedEntryIDs()
+		if len(ids) == 0 {
+			return m, m.setCommandStatus("Select one or more commands first", true)
+		}
+		m.bulkTargetIDs = ids
+		m.bulkTagForm.prepare()
+		m.errBanner = ""
+		m.cmdPhase = commandsBulkTags
+		return m, textinput.Blink
+	case strings.EqualFold(km.String(), "c"):
+		if !m.hasBrowseSelection() {
+			return m, m.setCommandStatus("No command to copy", true)
+		}
+		return m, copyCommandCmd(m.clip, m.cmdRows[m.browseCursor].Entry.Command)
 	case strings.EqualFold(km.String(), "a"):
 		m.returnToCommandsAfterForm = true
 		m.screen = ScreenAdd
@@ -616,6 +683,45 @@ func (m *Model) updateBrowseKeys(km tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cmdPhase = commandsDetail
 	}
 	return m, nil
+}
+
+func (m *Model) updateBulkTagForm(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if km, ok := msg.(tea.KeyMsg); ok {
+		switch {
+		case m.keys.shouldQuit(km):
+			return m, tea.Quit
+		case km.Type == tea.KeyEsc:
+			m.errBanner = ""
+			m.bulkTagForm.blurAll()
+			m.bulkTargetIDs = nil
+			m.cmdPhase = commandsBrowse
+			m.ensureBrowseVisible(true)
+			return m, nil
+		case km.Type == tea.KeyCtrlS:
+			changes := m.bulkTagForm.changes()
+			if len(changes) == 0 {
+				m.errBanner = "add or remove at least one tag"
+				return m, nil
+			}
+			m.errBanner = ""
+			return m, bulkTagsCmd(m.repo, append([]int64(nil), m.bulkTargetIDs...), changes)
+		case km.Type == tea.KeyTab || km.Type == tea.KeyShiftTab:
+			if m.bulkTagForm.focus == bulkTagFocusAdd {
+				m.bulkTagForm.focusField(bulkTagFocusRemove)
+			} else {
+				m.bulkTagForm.focusField(bulkTagFocusAdd)
+			}
+			return m, nil
+		}
+	}
+
+	var cmd tea.Cmd
+	if m.bulkTagForm.focus == bulkTagFocusRemove {
+		m.bulkTagForm.removeTI, cmd = m.bulkTagForm.removeTI.Update(msg)
+	} else {
+		m.bulkTagForm.addTI, cmd = m.bulkTagForm.addTI.Update(msg)
+	}
+	return m, cmd
 }
 
 func (m *Model) updateDetailKeys(km tea.KeyMsg) (tea.Model, tea.Cmd) {

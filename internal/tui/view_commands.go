@@ -17,6 +17,8 @@ func (m *Model) commandsMainView(width int) string {
 		return m.commandsDeleteView(width)
 	case commandsEdit:
 		return m.commandsEditView(width)
+	case commandsBulkTags:
+		return m.commandsBulkTagsView(width)
 	default:
 		return ""
 	}
@@ -29,27 +31,49 @@ func (m *Model) banner(width int) string {
 	return m.styles.Err.Width(width).Render(m.errBanner) + "\n\n"
 }
 
-func browseColumnWidths(total int) (cmdW, gap, descW int) {
-	const gutter = 2
+const (
+	commandMarkerWidth  = 4
+	minimumCommandWidth = 8
+	minimumDescWidth    = 8
+)
 
-	gap = 3
-	cmdW = 18
-
+func browseColumnWidths(total int) (markerW, cmdW, gap, descW int) {
+	targetCommand, targetGap := 18, 3
 	if total < 64 {
-		cmdW = 16
-		gap = 2
+		targetCommand, targetGap = 16, 2
 	}
 	if total < 44 {
-		cmdW = 12
-		gap = 2
+		targetCommand, targetGap = 12, 2
+	}
+	return responsiveColumnWidths(total, commandMarkerWidth, targetCommand, minimumCommandWidth, targetGap, minimumDescWidth)
+}
+
+func responsiveColumnWidths(total, marker, target, minimum, targetGap, minimumTail int) (markerW, leadingW, gap, tailW int) {
+	if total <= 0 {
+		return 0, 0, 0, 0
+	}
+	markerW = min(marker, total)
+	available := total - markerW
+	if available <= 0 {
+		return markerW, 0, 0, 0
 	}
 
-	descW = total - gutter - cmdW - gap
-	if descW < 12 {
-		descW = 12
+	gap = min(targetGap, max(available-minimum-minimumTail, 0))
+	content := available - gap
+	if content <= minimum {
+		return markerW, content, 0, 0
 	}
-
-	return cmdW, gap, descW
+	leadingW = min(target, content)
+	tailW = content - leadingW
+	if tailW < minimumTail && content > minimum {
+		leadingW = max(minimum, content-minimumTail)
+		tailW = content - leadingW
+	}
+	if tailW == 0 {
+		gap = 0
+		leadingW = available
+	}
+	return markerW, leadingW, gap, tailW
 }
 
 func wrapVisual(s string, width int) []string {
@@ -58,7 +82,7 @@ func wrapVisual(s string, width int) []string {
 		s = "—"
 	}
 	if width <= 0 {
-		return []string{s}
+		return nil
 	}
 
 	wrapped := lipgloss.NewStyle().Width(width).Render(s)
@@ -88,10 +112,13 @@ func clamp(v, min, max int) int {
 }
 
 func (m *Model) sectionTitleBlock(width int, title string) string {
+	if width <= 0 {
+		return ""
+	}
 	titleText := " " + title + " "
 	ruleW := width - lipgloss.Width(titleText) - 8
-	if ruleW < 8 {
-		ruleW = 8
+	if ruleW < 0 {
+		return m.styles.Title.Render(truncateScanTail(title, width))
 	}
 	left := ruleW / 2
 	right := ruleW - left
@@ -102,19 +129,32 @@ func (m *Model) sectionTitleBlock(width int, title string) string {
 }
 
 func (m *Model) categoryHeaderBlock(width int, name string) string {
+	if width <= 0 {
+		return ""
+	}
+	prefixWidth := lipgloss.Width("› Category: ")
+	if width <= prefixWidth {
+		head := m.styles.CategoryName.Render(truncateScanTail("› "+name, width))
+		rule := m.styles.Divider.Render(strings.Repeat("─", width))
+		return head + "\n" + rule
+	}
+	nameWidth := max(width-prefixWidth, 1)
 	head := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		m.styles.CategoryAccent.Render("› "),
 		m.styles.CategoryPrefix.Render("Category: "),
-		m.styles.CategoryName.Render(name),
+		m.styles.CategoryName.Render(truncateScanTail(name, nameWidth)),
 	)
 
 	divLen := lipgloss.Width(head) + 4
-	if divLen < 14 {
+	if divLen < 14 && width >= 14 {
 		divLen = 14
 	}
 	if divLen > 24 {
 		divLen = 24
+	}
+	if divLen > width {
+		divLen = width
 	}
 
 	rule := m.styles.Divider.Render(strings.Repeat("─", divLen))
@@ -147,6 +187,10 @@ func (m *Model) commandsBrowseFixedBlock(width int) string {
 	b.WriteString("\n\n")
 	b.WriteString(m.filterStatusBlock(width))
 	b.WriteString("\n")
+	if status := m.commandStatusBlock(width); status != "" {
+		b.WriteString(status)
+		b.WriteString("\n")
+	}
 	return b.String()
 }
 
@@ -211,19 +255,20 @@ func (m *Model) renderCommandEntry(width, index int) string {
 		return ""
 	}
 	row := m.cmdRows[index]
-	cmdW, gap, descW := browseColumnWidths(width)
+	markerW, cmdW, gap, descW := browseColumnWidths(width)
 	descRaw := strings.TrimSpace(row.Entry.Description)
 	cmdLines := wrapVisual(row.Entry.Command, cmdW)
 	descLines := wrapVisual(descRaw, descW)
-	selected := index == m.browseCursor && m.cmdFocus == commandsFocusList
+	focused := index == m.browseCursor && m.cmdFocus == commandsFocusList
+	multiSelected := m.isMultiSelected(row.Entry.ID)
 	rowHeight := maxInt(len(cmdLines), len(descLines))
+	if rowHeight == 0 && markerW > 0 {
+		rowHeight = 1
+	}
 	var b strings.Builder
 
 	for lineIdx := 0; lineIdx < rowHeight; lineIdx++ {
-		gutter := "  "
-		if selected && lineIdx == 0 {
-			gutter = m.styles.SelCaret.Render("› ")
-		}
+		marker := m.commandRowMarker(markerW, focused && lineIdx == 0, multiSelected && lineIdx == 0)
 
 		cmdText := ""
 		if lineIdx < len(cmdLines) {
@@ -235,21 +280,22 @@ func (m *Model) renderCommandEntry(width, index int) string {
 		}
 
 		var cmdCell, descCell string
-		if selected {
+		if focused {
 			cmdCell = m.styles.CmdSelected.Width(cmdW).Render(cmdText)
-			descCell = m.styles.DescSelected.Width(descW).Render(descText)
 		} else {
 			cmdCell = m.styles.CmdCol.Width(cmdW).Render(cmdText)
+		}
+		if descW > 0 && focused {
+			descCell = m.styles.DescSelected.Width(descW).Render(descText)
+		} else if descW > 0 {
 			descCell = m.styles.DescCol.Width(descW).Render(descText)
 		}
 
-		line := lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			gutter,
-			cmdCell,
-			strings.Repeat(" ", gap),
-			descCell,
-		)
+		parts := []string{marker, cmdCell}
+		if descW > 0 {
+			parts = append(parts, strings.Repeat(" ", gap), descCell)
+		}
+		line := lipgloss.JoinHorizontal(lipgloss.Top, parts...)
 		b.WriteString(line)
 
 		if lineIdx < rowHeight-1 {
@@ -259,24 +305,86 @@ func (m *Model) renderCommandEntry(width, index int) string {
 	return b.String()
 }
 
+func (m *Model) commandRowMarker(width int, focused, selected bool) string {
+	if width <= 0 {
+		return ""
+	}
+	focusW := min(2, width)
+	selectW := width - focusW
+	focus := strings.Repeat(" ", focusW)
+	if focused {
+		focus = m.styles.SelCaret.Width(focusW).Render(truncateScanTail("›", focusW))
+	}
+	selection := strings.Repeat(" ", selectW)
+	if selected && selectW > 0 {
+		selection = m.styles.CategoryAccent.Width(selectW).Render(truncateScanTail("✓", selectW))
+	}
+	return focus + selection
+}
+
+func (m *Model) commandStatusBlock(width int) string {
+	var parts []string
+	if m.hasBrowseSelection() {
+		parts = append(parts, fmt.Sprintf("%d of %d", m.browseCursor+1, len(m.cmdRows)))
+	}
+	if count := len(m.multiSelected); count > 0 {
+		parts = append(parts, fmt.Sprintf("%d selected", count))
+	}
+	if m.commandStatus.text != "" {
+		parts = append(parts, m.commandStatus.text)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	text := truncateScanTail(strings.Join(parts, "  ·  "), width)
+	if m.commandStatus.text != "" && m.commandStatus.isError {
+		return m.styles.Err.Render(text)
+	}
+	return m.styles.FieldValue.Render(text)
+}
+
+func (m *Model) temporaryCommandStatusBlock(width int) string {
+	if m.commandStatus.text == "" {
+		return ""
+	}
+	text := truncateScanTail(m.commandStatus.text, width)
+	if m.commandStatus.isError {
+		return m.styles.Err.Render(text)
+	}
+	return m.styles.FieldValue.Render(text)
+}
+
 func (m *Model) filterStatusBlock(width int) string {
+	innerWidth := width - m.styles.FilterWrap.GetHorizontalFrameSize()
+	if innerWidth <= 0 {
+		return ""
+	}
+	labelWidth := min(9, max(innerWidth-2, 1))
+	inputWidth := innerWidth - labelWidth - 1
+	if inputWidth <= 0 {
+		return m.styles.FilterWrap.Width(innerWidth).Render(
+			m.styles.FilterLabel.Width(innerWidth).Render(truncateScanTail("Search", innerWidth)),
+		)
+	}
+	m.searchTI.Width = inputWidth
+	m.tagTI.Width = inputWidth
 	searchRow := lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		m.styles.FilterLabel.Render("Search:"),
+		m.styles.FilterLabel.Width(labelWidth).Render(truncateScanTail("Search:", labelWidth)),
 		" ",
 		m.searchTI.View(),
 	)
 	tagRow := lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		m.styles.FilterLabel.Render("Tag:"),
+		m.styles.FilterLabel.Width(labelWidth).Render(truncateScanTail("Tag:", labelWidth)),
 		" ",
 		m.tagTI.View(),
 	)
 	inner := lipgloss.JoinVertical(lipgloss.Left,
-		lipgloss.NewStyle().Width(width).Render(searchRow),
-		lipgloss.NewStyle().Width(width).Render(tagRow),
+		lipgloss.NewStyle().Width(innerWidth).Render(searchRow),
+		lipgloss.NewStyle().Width(innerWidth).Render(tagRow),
 	)
-	return m.styles.FilterWrap.Width(width).Render(inner)
+	return m.styles.FilterWrap.Width(innerWidth).Render(inner)
 }
 
 func (m *Model) commandsDetailView(width int) string {
@@ -284,6 +392,10 @@ func (m *Model) commandsDetailView(width int) string {
 	b.WriteString(m.banner(width))
 	b.WriteString(m.sectionTitleBlock(width, "Command"))
 	b.WriteString("\n\n")
+	if status := m.temporaryCommandStatusBlock(width); status != "" {
+		b.WriteString(status)
+		b.WriteString("\n\n")
+	}
 	e := m.detailEntry
 	b.WriteString(m.styles.FieldValue.Width(width).Render(e.Command))
 	b.WriteString("\n\n\n")
@@ -329,6 +441,23 @@ func (m *Model) commandsDeleteView(width int) string {
 
 func (m *Model) commandsEditView(width int) string {
 	return m.addFormViewWithTitle(width, "Edit entry")
+}
+
+func (m *Model) commandsBulkTagsView(width int) string {
+	var b strings.Builder
+	b.WriteString(m.banner(width))
+	b.WriteString(m.sectionTitleBlock(width, "Bulk tags"))
+	b.WriteString("\n\n")
+	b.WriteString(m.styles.FieldValue.Width(width).Render(fmt.Sprintf("Updating %d selected commands", len(m.bulkTargetIDs))))
+	b.WriteString("\n\n\n")
+	b.WriteString(m.styles.FieldLabel.Render("Add tags"))
+	b.WriteString("\n")
+	b.WriteString(m.bulkTagForm.addTI.View())
+	b.WriteString("\n\n\n")
+	b.WriteString(m.styles.FieldLabel.Render("Remove tags"))
+	b.WriteString("\n")
+	b.WriteString(m.bulkTagForm.removeTI.View())
+	return b.String()
 }
 
 func (m *Model) addFormView(width int) string {

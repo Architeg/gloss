@@ -196,6 +196,64 @@ func TestBulkUpdateTagValidationAndMissingIDRollback(t *testing.T) {
 	}
 }
 
+func TestBulkUpdateTagsCombinesChangesInOneTransaction(t *testing.T) {
+	repo := newTestRepo(t)
+	ctx := context.Background()
+	ids, err := repo.CreateEntries(ctx, []model.Entry{
+		{Command: "first", Tags: []string{"Primary", "Old"}, Type: model.EntryTypeManual},
+		{Command: "second", Tags: []string{"Primary", "Keep"}, Type: model.EntryTypeManual},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	changes := []BulkTagChange{
+		{Operation: BulkTagRemove, Tag: " primary "},
+		{Operation: BulkTagRemove, Tag: " shared "},
+		{Operation: BulkTagAdd, Tag: "Shared"},
+		{Operation: BulkTagAdd, Tag: " NEW "},
+	}
+	if err := repo.BulkUpdateTags(ctx, ids, changes); err != nil {
+		t.Fatal(err)
+	}
+	first, err := repo.GetEntryByCommand(ctx, "first")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := repo.GetEntryByCommand(ctx, "second")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"Old", "Shared", "NEW"}; !reflect.DeepEqual(first.Tags, want) {
+		t.Fatalf("first tags = %q, want %q", first.Tags, want)
+	}
+	if want := []string{"Keep", "Shared", "NEW"}; !reflect.DeepEqual(second.Tags, want) {
+		t.Fatalf("second tags = %q, want %q", second.Tags, want)
+	}
+}
+
+func TestBulkUpdateTagsMissingIDRollsBackEveryChange(t *testing.T) {
+	repo := newTestRepo(t)
+	ctx := context.Background()
+	id, err := repo.CreateEntry(ctx, model.Entry{Command: "first", Tags: []string{"Old"}, Type: model.EntryTypeManual})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = repo.BulkUpdateTags(ctx, []int64{id, id + 9999}, []BulkTagChange{
+		{Operation: BulkTagRemove, Tag: "Old"},
+		{Operation: BulkTagAdd, Tag: "New"},
+	})
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("missing ID error = %v, want sql.ErrNoRows", err)
+	}
+	entry, err := repo.GetEntryByCommand(ctx, "first")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"Old"}; !reflect.DeepEqual(entry.Tags, want) {
+		t.Fatalf("combined operation partially committed: tags = %q, want %q", entry.Tags, want)
+	}
+}
+
 func newTestRepo(t *testing.T) *EntryRepo {
 	t.Helper()
 	db, err := Open(filepath.Join(t.TempDir(), "gloss.db"))

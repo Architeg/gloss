@@ -10,7 +10,7 @@ const glossRepoURL = "https://github.com/Architeg/gloss"
 
 const glossTagline = "Command glossary and alias helper"
 
-const glossVersionAuthor = "v0.1.0 • by Architeg"
+const glossVersionAuthor = "v0.1.1 • by Architeg"
 
 // Thin slash/underscore wordmark (original; not block glyphs).
 func glossWordmarkLines() []string {

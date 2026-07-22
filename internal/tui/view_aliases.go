@@ -105,20 +105,25 @@ func (m *Model) aliasListView(width int) string {
 		return b.String()
 	}
 	for i, e := range rows {
-		gutter := lipgloss.NewStyle().Width(2).Align(lipgloss.Left).Render("")
+		markerW, commandW, gap, targetW := responsiveColumnWidths(width, 2, 22, 8, 2, 8)
+		gutter := lipgloss.NewStyle().Width(markerW).Align(lipgloss.Left).Render("")
 		if i == m.aliasViewCursor {
-			gutter = lipgloss.NewStyle().Width(2).Align(lipgloss.Left).Render(m.styles.SelCaret.Render("›"))
+			gutter = lipgloss.NewStyle().Width(markerW).Align(lipgloss.Left).Render(m.styles.SelCaret.Render(truncateScanTail("›", markerW)))
 		}
 		cmdSt := m.styles.CmdCol
+		targetSt := m.styles.DescCol
 		if i == m.aliasViewCursor {
 			cmdSt = m.styles.CmdSelected
+			targetSt = m.styles.DescSelected
 		}
-		tw := width - 28
-		if tw < 16 {
-			tw = 16
+		parts := []string{
+			gutter,
+			cmdSt.Width(commandW).Render(truncateScanTail(e.Command, commandW)),
 		}
-		line := lipgloss.JoinHorizontal(lipgloss.Top, gutter, cmdSt.Render(e.Command), "  ", m.styles.DescCol.Render(truncateScanTail(e.Target, tw)))
-		b.WriteString(lipgloss.NewStyle().Width(width).Render(line))
+		if targetW > 0 {
+			parts = append(parts, strings.Repeat(" ", gap), targetSt.Width(targetW).Render(truncateScanTail(e.Target, targetW)))
+		}
+		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, parts...))
 		if i < len(rows)-1 {
 			b.WriteString("\n\n")
 		}
