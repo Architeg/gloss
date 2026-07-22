@@ -68,6 +68,7 @@ func runListCLI(repo *storage.EntryRepo, tag string) error {
 	if err != nil {
 		return err
 	}
+	entries = model.SortEntriesByPrimaryTag(entries)
 	if len(entries) == 0 {
 		if tag != "" {
 			fmt.Println("No entries match that tag.")

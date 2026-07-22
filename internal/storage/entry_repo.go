@@ -34,7 +34,7 @@ func (r *EntryRepo) CreateEntry(ctx context.Context, e model.Entry) (int64, erro
 	if e.UpdatedAt.IsZero() {
 		e.UpdatedAt = now
 	}
-	tags, err := json.Marshal(e.Tags)
+	tags, err := json.Marshal(model.NormalizeTags(e.Tags))
 	if err != nil {
 		return 0, fmt.Errorf("encode tags: %w", err)
 	}
@@ -112,7 +112,7 @@ ORDER BY command COLLATE NOCASE`, model.EntryTypeAlias)
 	return out, nil
 }
 
-// GetEntriesByTag filters entries that contain tag (exact match on tag string).
+// GetEntriesByTag filters entries by exact, case-insensitive tag match.
 func (r *EntryRepo) GetEntriesByTag(ctx context.Context, tag string) ([]model.Entry, error) {
 	all, err := r.GetAllEntries(ctx)
 	if err != nil {
@@ -120,14 +120,11 @@ func (r *EntryRepo) GetEntriesByTag(ctx context.Context, tag string) ([]model.En
 	}
 	var out []model.Entry
 	for _, e := range all {
-		for _, t := range e.Tags {
-			if t == tag {
-				out = append(out, e)
-				break
-			}
+		if model.EntryHasTag(e, tag) {
+			out = append(out, e)
 		}
 	}
-	return out, nil
+	return model.SortEntriesByPrimaryTag(out), nil
 }
 
 // GetEntryByCommand loads one entry by normalized command.
@@ -155,7 +152,7 @@ func (r *EntryRepo) UpdateEntry(ctx context.Context, e model.Entry) error {
 	if cmd == "" {
 		return fmt.Errorf("command is required")
 	}
-	tags, err := json.Marshal(e.Tags)
+	tags, err := json.Marshal(model.NormalizeTags(e.Tags))
 	if err != nil {
 		return fmt.Errorf("encode tags: %w", err)
 	}
@@ -265,7 +262,7 @@ func buildEntry(id int64, command, description, tagsJSON, typ, source, target st
 		ID:           id,
 		Command:      command,
 		Description:  description,
-		Tags:         tags,
+		Tags:         model.NormalizeTags(tags),
 		Type:         typ,
 		Source:       source,
 		Target:       target,

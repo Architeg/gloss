@@ -93,7 +93,7 @@ func SuggestionToEntry(s model.ScanSuggestion) model.Entry {
 	return model.Entry{
 		Command:      model.NormalizeCommand(s.Command),
 		Description:  desc,
-		Tags:         nil,
+		Tags:         model.NormalizeTags(nil),
 		Type:         s.Type,
 		Source:       s.Source,
 		Target:       s.Target,
