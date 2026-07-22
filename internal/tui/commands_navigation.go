@@ -99,13 +99,14 @@ func (m *Model) moveBrowsePage(direction int) {
 // browsePageSize is the number of selectable entries in the current viewport.
 // It is at least one whenever the command-list area has at least one row.
 func (m *Model) browsePageSize() int {
-	width := m.commandContentWidth()
-	height := m.commandListHeight(width)
+	fixedWidth := m.commandContentWidth()
+	rowWidth := m.listRowWidth(fixedWidth)
+	height := m.commandListHeight(fixedWidth)
 	if height <= 0 || len(m.cmdRows) == 0 {
 		return 0
 	}
 	start := clamp(m.browseOffset, 0, len(m.cmdRows)-1)
-	_, end := m.renderCommandViewport(width, height, start)
+	_, end := m.renderCommandViewport(rowWidth, height, start)
 	if end <= start {
 		return 1
 	}
@@ -154,14 +155,15 @@ func (m *Model) ensureBrowseVisible(compact bool) {
 		return
 	}
 	m.browseCursor = clamp(m.browseCursor, 0, len(m.cmdRows)-1)
-	width := m.commandContentWidth()
-	height := m.commandListHeight(width)
+	fixedWidth := m.commandContentWidth()
+	rowWidth := m.listRowWidth(fixedWidth)
+	height := m.commandListHeight(fixedWidth)
 	if height <= 0 {
 		m.browseOffset = 0
 		return
 	}
 	m.browseOffset = clamp(m.browseOffset, 0, len(m.cmdRows)-1)
-	if _, end := m.renderCommandViewport(width, height, 0); end == len(m.cmdRows) {
+	if _, end := m.renderCommandViewport(rowWidth, height, 0); end == len(m.cmdRows) {
 		m.browseOffset = 0
 		return
 	}
@@ -169,7 +171,7 @@ func (m *Model) ensureBrowseVisible(compact bool) {
 		m.browseOffset = m.browseCursor
 	}
 	for {
-		_, end := m.renderCommandViewport(width, height, m.browseOffset)
+		_, end := m.renderCommandViewport(rowWidth, height, m.browseOffset)
 		if m.browseCursor < end || m.browseOffset >= m.browseCursor {
 			break
 		}
@@ -179,7 +181,7 @@ func (m *Model) ensureBrowseVisible(compact bool) {
 	if compact {
 		for m.browseOffset > 0 {
 			candidate := m.browseOffset - 1
-			_, end := m.renderCommandViewport(width, height, candidate)
+			_, end := m.renderCommandViewport(rowWidth, height, candidate)
 			if m.browseCursor >= end {
 				break
 			}
@@ -190,12 +192,12 @@ func (m *Model) ensureBrowseVisible(compact bool) {
 	// Pull the final page upward when possible so shrinking data cannot leave an
 	// unnecessarily sparse tail.
 	for m.browseOffset > 0 {
-		_, end := m.renderCommandViewport(width, height, m.browseOffset)
+		_, end := m.renderCommandViewport(rowWidth, height, m.browseOffset)
 		if end != len(m.cmdRows) {
 			break
 		}
 		candidate := m.browseOffset - 1
-		_, candidateEnd := m.renderCommandViewport(width, height, candidate)
+		_, candidateEnd := m.renderCommandViewport(rowWidth, height, candidate)
 		if candidateEnd != len(m.cmdRows) || m.browseCursor >= candidateEnd {
 			break
 		}

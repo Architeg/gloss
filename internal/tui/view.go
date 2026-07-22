@@ -51,6 +51,15 @@ func (m *Model) mainContentHeight() int {
 	return height
 }
 
+// listRowWidth returns the real terminal interior available to list rows. The
+// surrounding screen may keep its narrower reading width for headings/forms.
+func (m *Model) listRowWidth(fallback int) int {
+	if m.width <= 0 {
+		return max(fallback, 0)
+	}
+	return max(m.width-m.styles.Padding.GetHorizontalFrameSize(), 0)
+}
+
 func (m *Model) mainBlock(width int) string {
 	switch m.screen {
 	case ScreenHome:

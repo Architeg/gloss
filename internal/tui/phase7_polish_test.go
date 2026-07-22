@@ -136,8 +136,8 @@ func TestWideCommandColumnExpandsForVisibleContent(t *testing.T) {
 	if measured := runewidth.StringWidth(command); measured != 32 {
 		t.Fatalf("representative command width = %d, want 32", measured)
 	}
-	if commandW != 32 || gap != 4 || descW != 36 {
-		t.Fatalf("wide content-aware columns = %d/%d/%d/%d, want 4/32/4/36", markerW, commandW, gap, descW)
+	if commandW != 32 || gap != 4 || descW != minimumDescWidth {
+		t.Fatalf("wide content-aware columns = %d/%d/%d/%d, want 4/32/4/%d", markerW, commandW, gap, descW, minimumDescWidth)
 	}
 	plain := stripANSI(m.renderCommandEntry(width, 0))
 	if strings.Count(plain, "\n") != 0 || !strings.Contains(plain, command) {
@@ -156,7 +156,7 @@ func TestWrappedCommandRowsStayBoundedAndKeepAllocatedGap(t *testing.T) {
 	}}, 2)
 	markerW, commandW, gap, descW := m.contentAwareBrowseColumnWidths(width)
 	if commandW != 32 || descW != 36 {
-		t.Fatalf("capped wide columns = %d/%d, want 32/36", commandW, descW)
+		t.Fatalf("capped 76-cell columns = %d/%d, want 32/36", commandW, descW)
 	}
 	m.multiSelected[1] = struct{}{}
 	plain := stripANSI(m.renderCommandEntry(width, 0))
@@ -171,6 +171,78 @@ func TestWrappedCommandRowsStayBoundedAndKeepAllocatedGap(t *testing.T) {
 		if got := visualCellSlice(line, markerW+commandW, markerW+commandW+gap); got != strings.Repeat(" ", gap) {
 			t.Fatalf("wrapped command gap = %q, want %d literal spaces in %q", got, gap, line)
 		}
+	}
+}
+
+func TestWideDescriptionsUseRealListWidthWithoutUnneededPadding(t *testing.T) {
+	const command = "dssh add 'name' 'root@ip' 'pass'"
+	descriptions := []string{
+		"Builds app from path (like ./cmd/gloss).",
+		"Run go app that was build (like ./cmd/gloss)",
+	}
+	m := newCommandTestModel([]model.Entry{
+		{ID: 1, Command: command, Description: descriptions[0], Tags: []string{"Category"}},
+		{ID: 2, Command: "go run", Description: descriptions[1], Tags: []string{"Category"}},
+	}, 6)
+	m.width = 160
+	fixedWidth := m.commandContentWidth()
+	rowWidth := m.listRowWidth(fixedWidth)
+	if fixedWidth != 76 || rowWidth != 154 {
+		t.Fatalf("fixed/row widths = %d/%d, want 76/154", fixedWidth, rowWidth)
+	}
+	markerW, commandW, gap, descW := m.contentAwareBrowseColumnWidths(rowWidth)
+	if markerW != 4 || commandW != 32 || gap != 4 || descW != 44 {
+		t.Fatalf("wide columns = %d/%d/%d/%d, want 4/32/4/44", markerW, commandW, gap, descW)
+	}
+
+	view := stripANSI(m.commandsBrowseView(fixedWidth))
+	for i, description := range descriptions {
+		rendered := view
+		if i > 0 {
+			rendered = stripANSI(m.renderCommandEntry(rowWidth, i))
+		}
+		line := lineContaining(rendered, description)
+		if line == "" {
+			t.Fatalf("description %d wrapped or disappeared in wide row: %q", i, rendered)
+		}
+		if got := runewidth.StringWidth(line); got > rowWidth {
+			t.Fatalf("wide description line width %d exceeds %d: %q", got, rowWidth, line)
+		}
+	}
+	line := lineContaining(view, descriptions[0])
+	if !strings.Contains(line, command) {
+		t.Fatalf("representative command and description are not on one line: %q", line)
+	}
+	assertRenderedGap(t, line, rowWidth, markerW, commandW, gap, descriptions[0])
+	if got, want := runewidth.StringWidth(line), markerW+commandW+gap+descW; got != want {
+		t.Fatalf("wide row width = %d, want content width %d without trailing padding: %q", got, want, line)
+	}
+}
+
+func TestDescriptionCapAndRemainingWidthAreRespected(t *testing.T) {
+	const command = "dssh add 'name' 'root@ip' 'pass'"
+	longDescription := strings.Repeat("description ", 30)
+	m := newCommandTestModel([]model.Entry{{
+		ID: 1, Command: command, Description: longDescription, Tags: []string{"Category"},
+	}}, 8)
+	markerW, commandW, gap, descW := m.contentAwareBrowseColumnWidths(214)
+	if descW != maximumDescWidth {
+		t.Fatalf("wide description width = %d, want cap %d", descW, maximumDescWidth)
+	}
+	plain := stripANSI(m.renderCommandEntry(214, 0))
+	if !strings.Contains(plain, "\n") {
+		t.Fatalf("description longer than cap did not wrap: %q", plain)
+	}
+	for _, line := range strings.Split(plain, "\n") {
+		if got := runewidth.StringWidth(line); got > 214 {
+			t.Fatalf("capped description line width %d exceeds 214: %q", got, line)
+		}
+	}
+
+	markerW, commandW, gap, descW = m.contentAwareBrowseColumnWidths(50)
+	remaining := 50 - markerW - commandW - gap
+	if descW > remaining || markerW+commandW+gap+descW > 50 {
+		t.Fatalf("constrained columns overflow: %d/%d/%d/%d remaining=%d", markerW, commandW, gap, descW, remaining)
 	}
 }
 
@@ -207,6 +279,20 @@ func TestRenderedAliasRowsUseLiteralResponsiveColumnGaps(t *testing.T) {
 		if got := runewidth.StringWidth(line); got > 76 {
 			t.Fatalf("content-aware alias line width %d exceeds 76: %q", got, line)
 		}
+	}
+
+	m.width = 160
+	wideTarget := strings.Repeat("target-", 10)
+	m.allEntries[0].Target = wideTarget
+	fixedWidth := m.commandContentWidth()
+	rowWidth := m.listRowWidth(fixedWidth)
+	wideView := stripANSI(m.aliasListView(fixedWidth))
+	line := lineContaining(wideView, wideTarget)
+	if line == "" {
+		t.Fatalf("wide alias target remained truncated at the fixed body width: %q", wideView)
+	}
+	if got := runewidth.StringWidth(line); got > rowWidth {
+		t.Fatalf("wide alias line width %d exceeds %d: %q", got, rowWidth, line)
 	}
 }
 

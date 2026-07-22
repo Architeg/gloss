@@ -41,6 +41,7 @@ const (
 	comfortableCommandWidth    = 18
 	maximumCommandWidth        = 40
 	minimumDescWidth           = 8
+	maximumDescWidth           = 80
 	compactCommandScreenHeight = 12
 )
 
@@ -56,19 +57,38 @@ func browseColumnWidths(total int) (markerW, cmdW, gap, descW int) {
 }
 
 func (m *Model) contentAwareBrowseColumnWidths(total int) (markerW, cmdW, gap, descW int) {
-	if total < 64 {
-		return browseColumnWidths(total)
-	}
-	preferred := comfortableCommandWidth
+	preferredDescription := minimumDescWidth
 	for _, row := range m.cmdRows {
-		preferred = max(preferred, runewidth.StringWidth(strings.TrimSpace(row.Entry.Command)))
+		description := strings.TrimSpace(row.Entry.Description)
+		if description != "" {
+			preferredDescription = max(preferredDescription, runewidth.StringWidth(description))
+		}
+	}
+	if total < 64 {
+		markerW, cmdW, gap, remaining := browseColumnWidths(total)
+		if remaining == 0 {
+			return markerW, cmdW, gap, 0
+		}
+		return markerW, cmdW, gap, min(remaining, min(preferredDescription, maximumDescWidth))
+	}
+
+	preferredCommand := comfortableCommandWidth
+	for _, row := range m.cmdRows {
+		preferredCommand = max(preferredCommand, runewidth.StringWidth(strings.TrimSpace(row.Entry.Command)))
 	}
 	// Two cells of tolerance keeps the share near 40% while avoiding an
 	// unnecessary wrap for ordinary commands near that boundary.
-	shareCap := total*2/5 + 2
-	preferred = min(preferred, shareCap)
-	preferred = min(preferred, maximumCommandWidth)
-	return responsiveColumnWidths(total, commandMarkerWidth, preferred, minimumCommandWidth, minimumDescWidth)
+	commandShareCap := max(minimumCommandWidth, total*2/5+2)
+	preferredCommand = min(preferredCommand, commandShareCap)
+	preferredCommand = min(preferredCommand, maximumCommandWidth)
+	markerW, cmdW, gap, remaining := responsiveColumnWidths(
+		total, commandMarkerWidth, preferredCommand, minimumCommandWidth, minimumDescWidth,
+	)
+	if remaining == 0 {
+		return markerW, cmdW, gap, 0
+	}
+	descW = min(remaining, min(preferredDescription, maximumDescWidth))
+	return markerW, cmdW, gap, descW
 }
 
 func responsiveColumnWidths(total, marker, target, minimum, minimumTail int) (markerW, leadingW, gap, tailW int) {
@@ -217,7 +237,7 @@ func (m *Model) commandsBrowseView(width int) string {
 	if separate {
 		b.WriteString("\n")
 	}
-	rows, _ := m.renderCommandViewport(width, listHeight, m.browseOffset)
+	rows, _ := m.renderCommandViewport(m.listRowWidth(width), listHeight, m.browseOffset)
 	b.WriteString(rows)
 	return b.String()
 }
@@ -268,7 +288,7 @@ func (m *Model) commandViewportLayout(width int) (height int, separate bool) {
 	if width <= 0 || height <= 1 || len(m.cmdRows) == 0 {
 		return height, false
 	}
-	firstRow := firstRenderedLines(m.renderCommandEntry(width, 0), 1)
+	firstRow := firstRenderedLines(m.renderCommandEntry(m.listRowWidth(width), 0), 1)
 	minimumBlock := m.categoryHeaderBlock(width, m.cmdRows[0].Group) + "\n\n" + firstRow
 	if height > lipgloss.Height(minimumBlock) {
 		return height - 1, true
