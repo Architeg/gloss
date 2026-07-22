@@ -145,7 +145,11 @@ func (m *Model) aliasPreviewView(width int) string {
 	b.WriteString(m.sectionTitleBlock(width, "Preview sync block"))
 	b.WriteString("\n\n")
 
-	block := alias.RenderManagedBlock(m.allEntries)
+	block, err := alias.RenderManagedBlock(m.allEntries)
+	if err != nil {
+		b.WriteString(m.styles.EmptyHint.Width(width).Render("Unable to render managed aliases: " + err.Error()))
+		return b.String()
+	}
 	b.WriteString(m.styles.FieldValue.Width(width).Render(block))
 	return b.String()
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,6 +26,14 @@ var (
 )
 
 func main() {
+	invocation, handled, exitCode := earlyDispatch(os.Args[1:], os.Stdout, os.Stderr)
+	if handled {
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
+		return
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gloss: config: %v\n", err)
@@ -41,16 +50,9 @@ func main() {
 
 	repo := storage.NewEntryRepo(db)
 
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "version", "--version", "-v":
-			printVersion()
-			return
+	if invocation.name != "" {
+		switch invocation.name {
 		case "scan":
-			if len(os.Args) > 2 {
-				fmt.Fprintln(os.Stderr, "gloss: usage: gloss scan")
-				os.Exit(1)
-			}
 			if err := runScanCLI(cfg, repo); err != nil {
 				fmt.Fprintf(os.Stderr, "gloss: scan: %v\n", err)
 				os.Exit(1)
@@ -63,80 +65,42 @@ func main() {
 			}
 			return
 		case "list":
-			tag, err := parseListArgs(os.Args[2:])
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err.Error())
-				os.Exit(1)
-			}
-			if err := runListCLI(repo, tag); err != nil {
+			if err := runListCLI(repo, invocation.tag); err != nil {
 				fmt.Fprintf(os.Stderr, "gloss: list: %v\n", err)
 				os.Exit(1)
 			}
 			return
 		case "edit":
-			if len(os.Args) != 3 || strings.TrimSpace(os.Args[2]) == "" {
-				fmt.Fprintln(os.Stderr, "gloss: usage: gloss edit <command>")
-				os.Exit(1)
-			}
-			if err := runEditCLI(repo, os.Args[2]); err != nil {
+			if err := runEditCLI(repo, invocation.command); err != nil {
 				fmt.Fprintf(os.Stderr, "gloss: edit: %v\n", err)
 				os.Exit(1)
 			}
 			return
 		case "delete":
-			if len(os.Args) != 3 || strings.TrimSpace(os.Args[2]) == "" {
-				fmt.Fprintln(os.Stderr, "gloss: usage: gloss delete <command>")
-				os.Exit(1)
-			}
-			if err := runDeleteCLI(repo, os.Args[2]); err != nil {
+			if err := runDeleteCLI(repo, invocation.command); err != nil {
 				fmt.Fprintf(os.Stderr, "gloss: delete: %v\n", err)
 				os.Exit(1)
 			}
 			return
 		case "alias":
-			if len(os.Args) < 3 {
-				fmt.Fprintln(os.Stderr, "gloss: usage: gloss alias <add|sync|delete>")
-				os.Exit(1)
-			}
-			switch os.Args[2] {
+			switch invocation.aliasAction {
 			case "add":
-				if len(os.Args) > 3 {
-					fmt.Fprintln(os.Stderr, "gloss: usage: gloss alias add")
-					os.Exit(1)
-				}
 				if err := runAliasAddCLI(repo); err != nil {
 					fmt.Fprintf(os.Stderr, "gloss: alias add: %v\n", err)
 					os.Exit(1)
 				}
 			case "sync":
-				if len(os.Args) > 3 {
-					fmt.Fprintln(os.Stderr, "gloss: usage: gloss alias sync")
-					os.Exit(1)
-				}
 				if err := runAliasSyncCLI(cfg, repo); err != nil {
 					fmt.Fprintf(os.Stderr, "gloss: alias sync: %v\n", err)
 					os.Exit(1)
 				}
 			case "delete":
-				if len(os.Args) != 4 || strings.TrimSpace(os.Args[3]) == "" {
-					fmt.Fprintln(os.Stderr, "gloss: usage: gloss alias delete <name>")
-					os.Exit(1)
-				}
-				if err := runAliasDeleteCLI(repo, os.Args[3]); err != nil {
+				if err := runAliasDeleteCLI(repo, invocation.command); err != nil {
 					fmt.Fprintf(os.Stderr, "gloss: alias delete: %v\n", err)
 					os.Exit(1)
 				}
-			default:
-				fmt.Fprintln(os.Stderr, "gloss: usage: gloss alias <add|sync|delete>")
-				os.Exit(1)
 			}
 			return
-		case "help", "-h", "--help":
-			printCLIHelp()
-			return
-		default:
-			fmt.Fprintf(os.Stderr, "gloss: unknown command %q (try gloss help)\n", os.Args[1])
-			os.Exit(1)
 		}
 	}
 
@@ -150,12 +114,87 @@ func main() {
 	}
 }
 
-func printVersion() {
-	fmt.Printf("gloss %s\n", Version)
+type invocation struct {
+	name        string
+	tag         string
+	command     string
+	aliasAction string
 }
 
-func printCLIHelp() {
-	fmt.Println(`Gloss — command glossary
+func earlyDispatch(args []string, stdout, stderr io.Writer) (invocation, bool, int) {
+	inv, err := parseInvocation(args)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return invocation{}, true, 1
+	}
+	switch inv.name {
+	case "version":
+		printVersion(stdout)
+		return inv, true, 0
+	case "help":
+		printCLIHelp(stdout)
+		return inv, true, 0
+	default:
+		return inv, false, 0
+	}
+}
+
+func parseInvocation(args []string) (invocation, error) {
+	if len(args) == 0 {
+		return invocation{}, nil
+	}
+	switch args[0] {
+	case "version", "--version", "-v":
+		return invocation{name: "version"}, nil
+	case "help", "-h", "--help":
+		return invocation{name: "help"}, nil
+	case "scan":
+		if len(args) > 1 {
+			return invocation{}, fmt.Errorf("gloss: usage: gloss scan")
+		}
+		return invocation{name: "scan"}, nil
+	case "add":
+		return invocation{name: "add"}, nil
+	case "list":
+		tag, err := parseListArgs(args[1:])
+		if err != nil {
+			return invocation{}, err
+		}
+		return invocation{name: "list", tag: tag}, nil
+	case "edit", "delete":
+		if len(args) != 2 || strings.TrimSpace(args[1]) == "" {
+			return invocation{}, fmt.Errorf("gloss: usage: gloss %s <command>", args[0])
+		}
+		return invocation{name: args[0], command: args[1]}, nil
+	case "alias":
+		if len(args) < 2 {
+			return invocation{}, fmt.Errorf("gloss: usage: gloss alias <add|sync|delete>")
+		}
+		switch args[1] {
+		case "add", "sync":
+			if len(args) > 2 {
+				return invocation{}, fmt.Errorf("gloss: usage: gloss alias %s", args[1])
+			}
+			return invocation{name: "alias", aliasAction: args[1]}, nil
+		case "delete":
+			if len(args) != 3 || strings.TrimSpace(args[2]) == "" {
+				return invocation{}, fmt.Errorf("gloss: usage: gloss alias delete <name>")
+			}
+			return invocation{name: "alias", aliasAction: "delete", command: args[2]}, nil
+		default:
+			return invocation{}, fmt.Errorf("gloss: usage: gloss alias <add|sync|delete>")
+		}
+	default:
+		return invocation{}, fmt.Errorf("gloss: unknown command %q (try gloss help)", args[0])
+	}
+}
+
+func printVersion(w io.Writer) {
+	fmt.Fprintf(w, "gloss %s\n", Version)
+}
+
+func printCLIHelp(w io.Writer) {
+	fmt.Fprintln(w, `Gloss — command glossary
 
 Terminal (no TUI):
   gloss version                print version

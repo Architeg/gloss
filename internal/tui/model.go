@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/Architeg/gloss/internal/alias"
 	"github.com/Architeg/gloss/internal/model"
 	"github.com/Architeg/gloss/internal/storage"
 )
@@ -309,7 +310,8 @@ func (m *Model) afterSave() (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) entryFromForm() (model.Entry, error) {
-	cmd := strings.TrimSpace(m.form.cmdTI.Value())
+	rawCommand := m.form.cmdTI.Value()
+	cmd := strings.TrimSpace(rawCommand)
 	if cmd == "" {
 		return model.Entry{}, errors.New("command is required")
 	}
@@ -325,6 +327,11 @@ func (m *Model) entryFromForm() (model.Entry, error) {
 		}, nil
 	}
 	e := m.form.base
+	if e.ManagedAlias && e.Type == model.EntryTypeAlias {
+		if err := alias.ValidateAliasName(rawCommand); err != nil {
+			return model.Entry{}, err
+		}
+	}
 	e.Command = model.NormalizeCommand(cmd)
 	e.Description = m.form.descTI.Value()
 	e.Tags = model.ParseTagsCSV(m.form.tagsTI.Value())

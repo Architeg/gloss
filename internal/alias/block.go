@@ -29,33 +29,28 @@ func ManagedAliases(entries []model.Entry) []model.Entry {
 }
 
 // RenderManagedBlock builds the gloss-managed alias block including marker lines.
-func RenderManagedBlock(entries []model.Entry) string {
+func RenderManagedBlock(entries []model.Entry) (string, error) {
 	managed := ManagedAliases(entries)
+	lines := make([]string, 0, len(managed))
+	for _, e := range managed {
+		if err := ValidateAliasName(e.Command); err != nil {
+			return "", fmt.Errorf("managed alias %q: %w", e.Command, err)
+		}
+		target, err := QuoteShellLiteral(e.Target)
+		if err != nil {
+			return "", fmt.Errorf("managed alias %q: %w", e.Command, err)
+		}
+		lines = append(lines, fmt.Sprintf("alias %s=%s\n", e.Command, target))
+	}
+
 	var b strings.Builder
 	b.WriteString(StartMarker)
 	b.WriteByte('\n')
-	for _, e := range managed {
-		b.WriteString(fmt.Sprintf("alias %s=%s\n", e.Command, doubleQuoteExpand(e.Target)))
+	for _, line := range lines {
+		b.WriteString(line)
 	}
 	b.WriteString(EndMarker)
-	return b.String()
-}
-
-func doubleQuoteExpand(s string) string {
-	var out strings.Builder
-	out.WriteByte('"')
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch c {
-		case '\\', '"':
-			out.WriteByte('\\')
-			out.WriteByte(c)
-		default:
-			out.WriteByte(c)
-		}
-	}
-	out.WriteByte('"')
-	return out.String()
+	return b.String(), nil
 }
 
 // MergeShellContent replaces an existing marked block or appends the block to the end.

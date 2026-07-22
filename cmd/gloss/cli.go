@@ -203,9 +203,8 @@ func runAliasAddCLI(repo *storage.EntryRepo) error {
 	if err != nil {
 		return err
 	}
-	name = model.NormalizeCommand(name)
-	if name == "" {
-		return errors.New("alias name is required")
+	if err := alias.ValidateAliasName(name); err != nil {
+		return err
 	}
 	target, err := promptLine(r, "Expands to: ")
 	if err != nil {

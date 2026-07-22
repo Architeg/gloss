@@ -273,8 +273,8 @@ Gloss writes aliases only inside this managed block:
 
 ```zsh
 # >>> gloss aliases >>>
-alias gs="git status"
-alias ll="ls -lah"
+alias gs='git status'
+alias ll='ls -lah'
 # <<< gloss aliases <<<
 ```
 

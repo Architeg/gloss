@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 
+	"github.com/Architeg/gloss/internal/alias"
 	"github.com/Architeg/gloss/internal/model"
 )
 
@@ -109,9 +110,9 @@ func (f *aliasFormState) resize(width int) {
 }
 
 func (f *aliasFormState) toEntry() (model.Entry, error) {
-	name := model.NormalizeCommand(strings.TrimSpace(f.nameTI.Value()))
-	if name == "" {
-		return model.Entry{}, errors.New("alias name is required")
+	name := f.nameTI.Value()
+	if err := alias.ValidateAliasName(name); err != nil {
+		return model.Entry{}, err
 	}
 	target := strings.TrimSpace(f.targetTI.Value())
 	if target == "" {

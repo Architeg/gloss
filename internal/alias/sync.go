@@ -26,9 +26,12 @@ func Sync(shellPath string, entries []model.Entry, retainBackups int) (Result, e
 		retainBackups = defaultRetain
 	}
 
-	block := RenderManagedBlock(entries)
 	var res Result
 	res.ShellPath = shellPath
+	block, err := RenderManagedBlock(entries)
+	if err != nil {
+		return res, err
+	}
 
 	fi, statErr := os.Stat(shellPath)
 	exists := statErr == nil

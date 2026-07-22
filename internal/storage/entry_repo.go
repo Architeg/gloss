@@ -9,6 +9,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/Architeg/gloss/internal/alias"
 	"github.com/Architeg/gloss/internal/model"
 )
 
@@ -68,6 +69,11 @@ func createEntry(ctx context.Context, executor sqlExecutor, e model.Entry) (int6
 	cmd := model.NormalizeCommand(e.Command)
 	if cmd == "" {
 		return 0, fmt.Errorf("command is required")
+	}
+	if e.ManagedAlias {
+		if err := alias.ValidateAliasName(e.Command); err != nil {
+			return 0, err
+		}
 	}
 	now := time.Now().UTC()
 	if e.CreatedAt.IsZero() {
@@ -193,6 +199,11 @@ func (r *EntryRepo) UpdateEntry(ctx context.Context, e model.Entry) error {
 	cmd := model.NormalizeCommand(e.Command)
 	if cmd == "" {
 		return fmt.Errorf("command is required")
+	}
+	if e.ManagedAlias {
+		if err := alias.ValidateAliasName(e.Command); err != nil {
+			return err
+		}
 	}
 	tags, err := json.Marshal(model.NormalizeTags(e.Tags))
 	if err != nil {
