@@ -2,6 +2,7 @@ package tui
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/Architeg/gloss/internal/model"
@@ -28,7 +29,7 @@ func TestFilterEntriesCaseInsensitive(t *testing.T) {
 			for i := range got {
 				gotIDs[i] = got[i].ID
 			}
-			if !reflect.DeepEqual(gotIDs, tt.wantIDs) {
+			if !slices.Equal(gotIDs, tt.wantIDs) {
 				t.Fatalf("filterEntries() IDs = %v, want %v", gotIDs, tt.wantIDs)
 			}
 		})

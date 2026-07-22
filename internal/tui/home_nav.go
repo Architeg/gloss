@@ -16,8 +16,8 @@ type SupportLink struct {
 
 // HomeSupportLinks is the secondary support row below the main menu.
 var HomeSupportLinks = []SupportLink{
-	{"›","GitHub Sponsors", URLGitHubSponsors},
-	{"›","Ko-fi", URLKoFi},
+	{"›", "GitHub Sponsors", URLGitHubSponsors},
+	{"›", "Ko-fi", URLKoFi},
 }
 
 // homeSection tracks focus on the home screen.
