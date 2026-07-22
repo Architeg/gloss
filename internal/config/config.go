@@ -24,18 +24,19 @@ func Load() (*model.Config, error) {
 	}
 
 	dir := filepath.Join(home, relConfigDir)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := ensurePrivateConfigDir(dir); err != nil {
 		return nil, fmt.Errorf("config dir: %w", err)
 	}
 
 	path := filepath.Join(dir, relConfigFile)
 	def := defaults(home)
 
-	if _, err := os.Stat(path); err != nil {
-		if !os.IsNotExist(err) {
-			return nil, err
-		}
-		if err := writeConfig(path, def); err != nil {
+	exists, err := ensurePrivateConfigFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("config file: %w", err)
+	}
+	if !exists {
+		if err := writeConfig(path, def, true); err != nil {
 			return nil, err
 		}
 		return def, nil
@@ -46,7 +47,7 @@ func Load() (*model.Config, error) {
 		return nil, err
 	}
 	if len(data) == 0 {
-		if err := writeConfig(path, def); err != nil {
+		if err := writeConfig(path, def, false); err != nil {
 			return nil, err
 		}
 		return def, nil
@@ -76,6 +77,43 @@ func Load() (*model.Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+func ensurePrivateConfigDir(path string) error {
+	if err := os.MkdirAll(path, 0o700); err != nil {
+		return err
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%s is a symlink", path)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("%s is not a directory", path)
+	}
+	return os.Chmod(path, 0o700)
+}
+
+func ensurePrivateConfigFile(path string) (bool, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return false, err
+		}
+		return false, nil
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return false, fmt.Errorf("%s is a symlink", path)
+	}
+	if !info.Mode().IsRegular() {
+		return false, fmt.Errorf("%s is not a regular file", path)
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func defaults(home string) *model.Config {
@@ -112,12 +150,27 @@ func defaultShellPaths(home string) (string, []string) {
 	}
 }
 
-func writeConfig(path string, cfg *model.Config) error {
+func writeConfig(path string, cfg *model.Config, create bool) error {
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("encode config: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	flags := os.O_WRONLY | os.O_TRUNC
+	if create {
+		flags |= os.O_CREATE | os.O_EXCL
+	}
+	f, err := os.OpenFile(path, flags, 0o600)
+	if err != nil {
+		return fmt.Errorf("open config: %w", err)
+	}
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("write config: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close config: %w", err)
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
 		return fmt.Errorf("write config: %w", err)
 	}
 	return nil

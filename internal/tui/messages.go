@@ -119,23 +119,18 @@ func importScanCmd(repo *storage.EntryRepo, rows []model.ScanSuggestion) tea.Cmd
 	}
 	return func() tea.Msg {
 		ctx := context.Background()
-		n := 0
-		var firstErr error
+		entries := make([]model.Entry, 0, len(rows))
 		for _, s := range rows {
 			if !s.Selected {
 				continue
 			}
-			e := scan.SuggestionToEntry(s)
-			_, err := repo.CreateEntry(ctx, e)
-			if err != nil {
-				if firstErr == nil {
-					firstErr = err
-				}
-				continue
-			}
-			n++
+			entries = append(entries, scan.SuggestionToEntry(s))
 		}
-		return importScanMsg{err: firstErr, imported: n}
+		ids, err := repo.CreateEntries(ctx, entries)
+		if err != nil {
+			return importScanMsg{err: err, imported: 0}
+		}
+		return importScanMsg{imported: len(ids)}
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/Architeg/gloss/internal/model"
@@ -16,6 +17,19 @@ type EntryRepo struct {
 	db *sql.DB
 }
 
+// BulkTagOperation identifies one transactional tag mutation.
+type BulkTagOperation int
+
+const (
+	BulkTagSetPrimary BulkTagOperation = iota
+	BulkTagAdd
+	BulkTagRemove
+)
+
+type sqlExecutor interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
 // NewEntryRepo wraps a database handle.
 func NewEntryRepo(db *sql.DB) *EntryRepo {
 	return &EntryRepo{db: db}
@@ -23,6 +37,34 @@ func NewEntryRepo(db *sql.DB) *EntryRepo {
 
 // CreateEntry inserts a new row. Command is normalized; timestamps default to UTC now.
 func (r *EntryRepo) CreateEntry(ctx context.Context, e model.Entry) (int64, error) {
+	return createEntry(ctx, r.db, e)
+}
+
+// CreateEntries inserts all entries in input order within one transaction.
+func (r *EntryRepo) CreateEntries(ctx context.Context, entries []model.Entry) ([]int64, error) {
+	ids := make([]int64, 0, len(entries))
+	if len(entries) == 0 {
+		return ids, nil
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin create entries: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	for i, entry := range entries {
+		id, err := createEntry(ctx, tx, entry)
+		if err != nil {
+			return nil, fmt.Errorf("create entries item %d: %w", i+1, err)
+		}
+		ids = append(ids, id)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit create entries: %w", err)
+	}
+	return ids, nil
+}
+
+func createEntry(ctx context.Context, executor sqlExecutor, e model.Entry) (int64, error) {
 	cmd := model.NormalizeCommand(e.Command)
 	if cmd == "" {
 		return 0, fmt.Errorf("command is required")
@@ -38,7 +80,7 @@ func (r *EntryRepo) CreateEntry(ctx context.Context, e model.Entry) (int64, erro
 	if err != nil {
 		return 0, fmt.Errorf("encode tags: %w", err)
 	}
-	res, err := r.db.ExecContext(ctx, `
+	res, err := executor.ExecContext(ctx, `
 INSERT INTO entries (command, description, tags, type, source, target, managed_alias, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		cmd,
@@ -157,9 +199,6 @@ func (r *EntryRepo) UpdateEntry(ctx context.Context, e model.Entry) error {
 		return fmt.Errorf("encode tags: %w", err)
 	}
 	now := time.Now().UTC()
-	if !e.UpdatedAt.IsZero() {
-		now = e.UpdatedAt.UTC()
-	}
 	res, err := r.db.ExecContext(ctx, `
 UPDATE entries
 SET command = ?, description = ?, tags = ?, type = ?, source = ?, target = ?, managed_alias = ?, updated_at = ?
@@ -185,6 +224,118 @@ WHERE id = ?`,
 		return sql.ErrNoRows
 	}
 	return nil
+}
+
+// BulkUpdateTag applies one tag operation to all unique IDs atomically.
+func (r *EntryRepo) BulkUpdateTag(ctx context.Context, ids []int64, operation BulkTagOperation, tag string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	normalized := model.NormalizeTags([]string{tag})
+	if len(normalized) == 0 {
+		return fmt.Errorf("tag is required")
+	}
+	if operation < BulkTagSetPrimary || operation > BulkTagRemove {
+		return fmt.Errorf("invalid bulk tag operation %d", operation)
+	}
+
+	unique := make([]int64, 0, len(ids))
+	seen := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			return fmt.Errorf("invalid entry id %d", id)
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin bulk tag update: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	for _, id := range unique {
+		var tagsJSON string
+		if err := tx.QueryRowContext(ctx, `SELECT tags FROM entries WHERE id = ?`, id).Scan(&tagsJSON); err != nil {
+			return fmt.Errorf("load entry %d for bulk tag update: %w", id, err)
+		}
+		var stored []string
+		if tagsJSON != "" && tagsJSON != "null" {
+			if err := json.Unmarshal([]byte(tagsJSON), &stored); err != nil {
+				return fmt.Errorf("decode tags for entry %d: %w", id, err)
+			}
+		}
+		current := model.NormalizeTags(stored)
+		updated := applyBulkTagOperation(current, operation, normalized[0])
+		if slices.Equal(stored, updated) {
+			continue
+		}
+		encoded, err := json.Marshal(model.NormalizeTags(updated))
+		if err != nil {
+			return fmt.Errorf("encode tags for entry %d: %w", id, err)
+		}
+		res, err := tx.ExecContext(ctx, `UPDATE entries SET tags = ?, updated_at = ? WHERE id = ?`, string(encoded), time.Now().UTC().Format(time.RFC3339Nano), id)
+		if err != nil {
+			return fmt.Errorf("update tags for entry %d: %w", id, err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("rows affected for entry %d: %w", id, err)
+		}
+		if n == 0 {
+			return fmt.Errorf("update tags for entry %d: %w", id, sql.ErrNoRows)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit bulk tag update: %w", err)
+	}
+	return nil
+}
+
+func applyBulkTagOperation(tags []string, operation BulkTagOperation, tag string) []string {
+	current := model.NormalizeTags(tags)
+	match := -1
+	for i, existing := range current {
+		if model.EqualTag(existing, tag) {
+			match = i
+			break
+		}
+	}
+
+	switch operation {
+	case BulkTagSetPrimary:
+		if match == 0 {
+			return current
+		}
+		if match > 0 {
+			out := make([]string, 0, len(current))
+			out = append(out, current[match])
+			out = append(out, current[:match]...)
+			out = append(out, current[match+1:]...)
+			return out
+		}
+		return append([]string{tag}, current...)
+	case BulkTagAdd:
+		if match >= 0 {
+			return current
+		}
+		return append(current, tag)
+	case BulkTagRemove:
+		if match < 0 {
+			return current
+		}
+		out := make([]string, 0, len(current)-1)
+		out = append(out, current[:match]...)
+		out = append(out, current[match+1:]...)
+		return out
+	default:
+		return current
+	}
 }
 
 // DeleteEntryByCommand removes a row by normalized command.
