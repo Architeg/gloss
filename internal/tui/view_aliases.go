@@ -113,14 +113,15 @@ func (m *Model) aliasListView(width int) string {
 		preferredAliasWidth = min(preferredAliasWidth, min(40, rowWidth*2/5+2))
 	}
 	for i, e := range rows {
+		focused := i == m.aliasViewCursor
 		markerW, commandW, gap, targetW := responsiveColumnWidths(rowWidth, 2, preferredAliasWidth, 8, 8)
 		gutter := lipgloss.NewStyle().Width(markerW).Align(lipgloss.Left).Render("")
-		if i == m.aliasViewCursor {
-			gutter = lipgloss.NewStyle().Width(markerW).Align(lipgloss.Left).Render(m.styles.SelCaret.Render(truncateScanTail("›", markerW)))
+		if focused {
+			gutter = m.styles.FocusedRow.Width(markerW).Align(lipgloss.Left).Render(truncateScanTail("›", markerW))
 		}
 		cmdSt := m.styles.CmdCol
 		targetSt := m.styles.DescCol
-		if i == m.aliasViewCursor {
+		if focused {
 			cmdSt = m.styles.CmdSelected
 			targetSt = m.styles.DescSelected
 		}
@@ -129,7 +130,11 @@ func (m *Model) aliasListView(width int) string {
 			cmdSt.Width(commandW).Render(truncateScanTail(e.Command, commandW)),
 		}
 		if targetW > 0 {
-			parts = append(parts, strings.Repeat(" ", gap), targetSt.Width(targetW).Render(truncateScanTail(e.Target, targetW)))
+			gapCell := strings.Repeat(" ", gap)
+			if focused {
+				gapCell = m.styles.FocusedRow.Render(gapCell)
+			}
+			parts = append(parts, gapCell, targetSt.Width(targetW).Render(truncateScanTail(e.Target, targetW)))
 		}
 		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, parts...))
 		if i < len(rows)-1 {

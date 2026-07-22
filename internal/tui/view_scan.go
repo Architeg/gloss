@@ -102,24 +102,26 @@ func (m *Model) scanView(width int) string {
 	if !m.scanLoading && len(m.scanRows) > 0 {
 		gutterW, markW, cmdW, typW, gap, detailW := scanRowWidths(width)
 		for i, row := range m.scanRows {
+			focused := i == m.scanCursor
 			gutter := lipgloss.NewStyle().Width(gutterW).Align(lipgloss.Left).Render("")
-			if i == m.scanCursor {
-				gutter = lipgloss.NewStyle().Width(gutterW).Align(lipgloss.Left).Render(m.styles.SelCaret.Render("›"))
+			if focused {
+				gutter = m.styles.FocusedRow.Width(gutterW).Align(lipgloss.Left).Render("›")
 			}
 			mark := "[ ]"
 			if row.Selected {
 				mark = "[x]"
 			}
-			if i == m.scanCursor {
-				mark = m.styles.Selected.Render(mark)
+			var markCell string
+			if focused {
+				markCell = m.styles.FocusedRow.Bold(true).Width(markW).Render(mark)
 			} else {
 				mark = m.styles.Item.Render(mark)
+				markCell = lipgloss.NewStyle().Width(markW).Render(mark)
 			}
-			markCell := lipgloss.NewStyle().Width(markW).Render(mark)
 
 			cmdSt := m.styles.CmdCol
 			typSt := m.styles.DescCol
-			if i == m.scanCursor {
+			if focused {
 				cmdSt = m.styles.CmdSelected
 				typSt = m.styles.DescSelected
 			}
@@ -129,8 +131,12 @@ func (m *Model) scanView(width int) string {
 			detail := scanRowDetail(row)
 			detail = truncateScanTail(detail, detailW)
 			detailCell := m.styles.DescCol.Width(detailW).Render(detail)
-			if i == m.scanCursor {
+			if focused {
 				detailCell = m.styles.DescSelected.Width(detailW).Render(detail)
+			}
+			gapCell := strings.Repeat(" ", gap)
+			if focused {
+				gapCell = m.styles.FocusedRow.Render(gapCell)
 			}
 
 			line := lipgloss.JoinHorizontal(
@@ -138,9 +144,9 @@ func (m *Model) scanView(width int) string {
 				gutter,
 				markCell,
 				cmdCell,
-				strings.Repeat(" ", gap),
+				gapCell,
 				typCell,
-				strings.Repeat(" ", gap),
+				gapCell,
 				detailCell,
 			)
 			b.WriteString(lipgloss.NewStyle().Width(width).Render(line))

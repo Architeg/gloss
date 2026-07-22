@@ -362,7 +362,7 @@ func (m *Model) renderCommandEntry(width, index int) string {
 	var b strings.Builder
 
 	for lineIdx := 0; lineIdx < rowHeight; lineIdx++ {
-		marker := m.commandRowMarker(markerW, focused && lineIdx == 0, multiSelected && lineIdx == 0)
+		marker := m.commandRowMarker(markerW, focused, focused && lineIdx == 0, multiSelected && lineIdx == 0)
 
 		cmdText := ""
 		if lineIdx < len(cmdLines) {
@@ -387,7 +387,11 @@ func (m *Model) renderCommandEntry(width, index int) string {
 
 		parts := []string{marker, cmdCell}
 		if descW > 0 {
-			parts = append(parts, strings.Repeat(" ", gap), descCell)
+			gapCell := strings.Repeat(" ", gap)
+			if focused {
+				gapCell = m.styles.FocusedRow.Render(gapCell)
+			}
+			parts = append(parts, gapCell, descCell)
 		}
 		line := lipgloss.JoinHorizontal(lipgloss.Top, parts...)
 		b.WriteString(line)
@@ -399,17 +403,26 @@ func (m *Model) renderCommandEntry(width, index int) string {
 	return b.String()
 }
 
-func (m *Model) commandRowMarker(width int, focused, selected bool) string {
+func (m *Model) commandRowMarker(width int, active, focused, selected bool) string {
 	if width <= 0 {
 		return ""
 	}
 	focusW := min(2, width)
 	selectW := width - focusW
 	focus := strings.Repeat(" ", focusW)
+	selection := strings.Repeat(" ", selectW)
+	if active {
+		if focused {
+			focus = lipgloss.NewStyle().Width(focusW).Render(truncateScanTail("›", focusW))
+		}
+		if selected && selectW > 0 {
+			selection = lipgloss.NewStyle().Width(selectW).Render(truncateScanTail("✓", selectW))
+		}
+		return m.styles.FocusedRow.Render(focus + selection)
+	}
 	if focused {
 		focus = m.styles.SelCaret.Width(focusW).Render(truncateScanTail("›", focusW))
 	}
-	selection := strings.Repeat(" ", selectW)
 	if selected && selectW > 0 {
 		selection = m.styles.CategoryAccent.Width(selectW).Render(truncateScanTail("✓", selectW))
 	}
