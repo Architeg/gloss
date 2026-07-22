@@ -208,38 +208,59 @@ func (m *Model) footerContent() string {
 			})
 		}
 	case ScreenCommands:
+		if m.commandHelpOpen {
+			return m.renderAdaptiveFooter(
+				[]footPart{
+					{key: "↑↓", label: "Scroll", compactKey: "↑↓"},
+					{key: "?", label: "Close help", compactKey: "?", keep: true},
+				},
+				[]footPart{
+					{key: "PgUp/PgDn", label: "Page", compactKey: "Pg"},
+					{key: "Home/End", label: "First/last", compactKey: "Home/End"},
+					{key: "Esc", label: "Close help", compactKey: "Esc"},
+					{key: "Q", label: "Quit", compactKey: "Q"},
+				},
+			)
+		}
 		switch m.cmdPhase {
 		case commandsBrowse:
 			if m.cmdFocus == commandsFocusSearch {
 				return m.renderFooter([]footPart{
 					{key: "Esc", label: "List"},
+					{key: "?", label: "Help"},
 					{key: "Q", label: "Quit"},
 				})
 			}
 			if m.cmdFocus == commandsFocusTag {
 				return m.renderFooter([]footPart{
 					{key: "Esc", label: "List"},
+					{key: "?", label: "Help"},
 					{key: "Q", label: "Quit"},
 				})
 			}
-			return m.renderFooter([]footPart{
-				{key: "Space", label: "Select"},
-				{key: "T", label: "Tags"},
-				{key: "C", label: "Copy"},
-				{key: "Esc", label: "Back"},
-				{key: "Q", label: "Quit"},
-				{key: "^A", label: "Visible"},
-				{key: "/", label: "Search"},
-				{key: "F", label: "Filter"},
-				{key: "E", label: "Edit"},
-				{key: "D", label: "Delete"},
-				{key: "A", label: "Add"},
-				{key: "↑↓", label: "Move"},
-				{key: "Pg↑↓", label: "Page"},
-				{key: "Home/End", label: "Bounds"},
-				{key: "[ ]", label: "Groups"},
-				{key: "Enter", label: "Open"},
-			})
+			return m.renderAdaptiveFooter(
+				[]footPart{
+					{key: "↑↓", label: "Navigate", compactKey: "↑↓"},
+					{key: "Space", label: "Select", compactKey: "Space"},
+					{key: "Enter", label: "Details", compactKey: "Enter"},
+					{key: "?", label: "Help", compactKey: "?", keep: true},
+				},
+				[]footPart{
+					{key: "Ctrl+A", label: "All visible", compactKey: "Ctrl+A"},
+					{key: "T", label: "Bulk tags", compactKey: "T"},
+					{key: "C", label: "Copy", compactKey: "C"},
+					{key: "/", label: "Search", compactKey: "/"},
+					{key: "F", label: "Filter", compactKey: "F"},
+					{key: "[ ]", label: "Categories", compactKey: "[ ]"},
+					{key: "Home/End", label: "First/last", compactKey: "Home/End"},
+					{key: "PgUp/PgDn", label: "Page", compactKey: "Pg"},
+					{key: "A", label: "Add", compactKey: "A"},
+					{key: "E", label: "Edit", compactKey: "E"},
+					{key: "D", label: "Delete", compactKey: "D"},
+					{key: "Esc", label: "Back", compactKey: "Esc"},
+					{key: "Q", label: "Quit", compactKey: "Q"},
+				},
+			)
 		case commandsDetail:
 			return m.renderFooter([]footPart{
 				{key: "Esc", label: "Back"},

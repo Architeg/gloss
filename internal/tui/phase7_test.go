@@ -19,8 +19,10 @@ func TestBrowseColumnWidthsAreResponsiveAndBounded(t *testing.T) {
 		width                        int
 		wantMarker, wantCommand, gap int
 	}{
-		{width: 76, wantMarker: 4, wantCommand: 18, gap: 3},
+		{width: 76, wantMarker: 4, wantCommand: 18, gap: 4},
+		{width: 60, wantMarker: 4, wantCommand: 16, gap: 3},
 		{width: 40, wantMarker: 4, wantCommand: 12, gap: 2},
+		{width: 21, wantMarker: 4, wantCommand: 8, gap: 1},
 		{width: 20, wantMarker: 4, wantCommand: 8, gap: 0},
 		{width: 5, wantMarker: 4, wantCommand: 1, gap: 0},
 		{width: 0, wantMarker: 0, wantCommand: 0, gap: 0},
@@ -397,7 +399,7 @@ func TestResponsiveFooterIsSingleLineAndWidthBounded(t *testing.T) {
 	}
 	m.width = 400
 	footer := m.footerContent()
-	for _, hint := range []string{"Space", "^A", "T", "C", "Pg", "Home/End", "[ ]"} {
+	for _, hint := range []string{"↑↓ Navigate", "Space Select", "Enter Details", "? Help", "Ctrl+A All visible", "T Bulk tags", "C Copy", "PgUp/PgDn Page", "Home/End First/last", "[ ] Categories"} {
 		if !strings.Contains(footer, hint) {
 			t.Fatalf("wide footer missing %q: %q", hint, footer)
 		}

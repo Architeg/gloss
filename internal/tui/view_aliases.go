@@ -105,7 +105,7 @@ func (m *Model) aliasListView(width int) string {
 		return b.String()
 	}
 	for i, e := range rows {
-		markerW, commandW, gap, targetW := responsiveColumnWidths(width, 2, 22, 8, 2, 8)
+		markerW, commandW, gap, targetW := responsiveColumnWidths(width, 2, 22, 8, 8)
 		gutter := lipgloss.NewStyle().Width(markerW).Align(lipgloss.Left).Render("")
 		if i == m.aliasViewCursor {
 			gutter = lipgloss.NewStyle().Width(markerW).Align(lipgloss.Left).Render(m.styles.SelCaret.Render(truncateScanTail("›", markerW)))

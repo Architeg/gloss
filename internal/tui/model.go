@@ -41,18 +41,20 @@ type Model struct {
 	allEntries []model.Entry
 	errBanner  string
 
-	cmdPhase      commandsPhase
-	cmdFocus      commandsFocus
-	cmdRows       []cmdRow
-	browseCursor  int
-	browseOffset  int
-	selectedID    int64
-	restoreID     int64
-	detailEntry   model.Entry
-	multiSelected map[int64]struct{}
-	bulkTagForm   bulkTagFormState
-	bulkTargetIDs []int64
-	commandStatus commandStatus
+	cmdPhase          commandsPhase
+	cmdFocus          commandsFocus
+	cmdRows           []cmdRow
+	browseCursor      int
+	browseOffset      int
+	selectedID        int64
+	restoreID         int64
+	detailEntry       model.Entry
+	multiSelected     map[int64]struct{}
+	bulkTagForm       bulkTagFormState
+	bulkTargetIDs     []int64
+	commandStatus     commandStatus
+	commandHelpOpen   bool
+	commandHelpOffset int
 
 	searchTI textinput.Model
 	tagTI    textinput.Model
@@ -132,6 +134,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.tagTI.Width = inputWidth(cw - 10)
 		m.aliasForm.resize(cw)
 		m.bulkTagForm.resize(cw)
+		m.clampCommandHelpOffset()
 		m.ensureBrowseVisible(true)
 		return m, nil
 
@@ -542,6 +545,14 @@ func (m *Model) updateSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) updateCommands(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.commandHelpOpen {
+		return m.updateCommandHelp(msg)
+	}
+	if km, ok := msg.(tea.KeyMsg); ok && m.cmdPhase == commandsBrowse && km.String() == "?" {
+		m.commandHelpOpen = true
+		m.commandHelpOffset = 0
+		return m, nil
+	}
 	switch m.cmdPhase {
 	case commandsEdit:
 		return m.updateForm(msg, true)

@@ -8,6 +8,9 @@ import (
 )
 
 func (m *Model) commandsMainView(width int) string {
+	if m.commandHelpOpen {
+		return m.commandHelpView(width)
+	}
 	switch m.cmdPhase {
 	case commandsBrowse:
 		return m.commandsBrowseView(width)
@@ -32,23 +35,24 @@ func (m *Model) banner(width int) string {
 }
 
 const (
-	commandMarkerWidth  = 4
-	minimumCommandWidth = 8
-	minimumDescWidth    = 8
+	commandMarkerWidth         = 4
+	minimumCommandWidth        = 8
+	minimumDescWidth           = 8
+	compactCommandScreenHeight = 12
 )
 
 func browseColumnWidths(total int) (markerW, cmdW, gap, descW int) {
-	targetCommand, targetGap := 18, 3
+	targetCommand := 18
 	if total < 64 {
-		targetCommand, targetGap = 16, 2
+		targetCommand = 16
 	}
 	if total < 44 {
-		targetCommand, targetGap = 12, 2
+		targetCommand = 12
 	}
-	return responsiveColumnWidths(total, commandMarkerWidth, targetCommand, minimumCommandWidth, targetGap, minimumDescWidth)
+	return responsiveColumnWidths(total, commandMarkerWidth, targetCommand, minimumCommandWidth, minimumDescWidth)
 }
 
-func responsiveColumnWidths(total, marker, target, minimum, targetGap, minimumTail int) (markerW, leadingW, gap, tailW int) {
+func responsiveColumnWidths(total, marker, target, minimum, minimumTail int) (markerW, leadingW, gap, tailW int) {
 	if total <= 0 {
 		return 0, 0, 0, 0
 	}
@@ -58,7 +62,7 @@ func responsiveColumnWidths(total, marker, target, minimum, targetGap, minimumTa
 		return markerW, 0, 0, 0
 	}
 
-	gap = min(targetGap, max(available-minimum-minimumTail, 0))
+	gap = min(preferredColumnGap(total), max(available-minimum-minimumTail, 0))
 	content := available - gap
 	if content <= minimum {
 		return markerW, content, 0, 0
@@ -74,6 +78,21 @@ func responsiveColumnWidths(total, marker, target, minimum, targetGap, minimumTa
 		leadingW = available
 	}
 	return markerW, leadingW, gap, tailW
+}
+
+func preferredColumnGap(total int) int {
+	switch {
+	case total >= 64:
+		return 4
+	case total >= 44:
+		return 3
+	case total >= 28:
+		return 2
+	case total > 0:
+		return 1
+	default:
+		return 0
+	}
 }
 
 func wrapVisual(s string, width int) []string {
@@ -175,7 +194,11 @@ func (m *Model) commandsBrowseView(width int) string {
 		b.WriteString(m.styles.EmptyHint.Width(width).Render(msg))
 		return b.String()
 	}
-	rows, _ := m.renderCommandViewport(width, m.commandListHeight(width), m.browseOffset)
+	listHeight, separate := m.commandViewportLayout(width)
+	if separate {
+		b.WriteString("\n")
+	}
+	rows, _ := m.renderCommandViewport(width, listHeight, m.browseOffset)
 	b.WriteString(rows)
 	return b.String()
 }
@@ -191,15 +214,47 @@ func (m *Model) commandsBrowseFixedBlock(width int) string {
 		b.WriteString(status)
 		b.WriteString("\n")
 	}
-	return b.String()
+	normal := b.String()
+	if len(m.cmdRows) == 0 || m.height <= 0 || m.height > compactCommandScreenHeight || lipgloss.Height(normal) < m.mainContentHeight() {
+		return normal
+	}
+
+	status := m.commandStatusBlock(width)
+	compact := m.sectionTitleBlock(width, "Commands") + "\n"
+	if status != "" {
+		compact += status + "\n"
+	}
+	if lipgloss.Height(compact) < m.mainContentHeight() {
+		return compact
+	}
+	if status != "" {
+		status += "\n"
+		if lipgloss.Height(status) < m.mainContentHeight() {
+			return status
+		}
+	}
+	return ""
 }
 
 func (m *Model) commandListHeight(width int) int {
-	height := m.mainContentHeight() - lipgloss.Height(m.commandsBrowseFixedBlock(width))
-	if height < 0 {
-		return 0
-	}
+	height, _ := m.commandViewportLayout(width)
 	return height
+}
+
+func (m *Model) commandViewportLayout(width int) (height int, separate bool) {
+	height = m.mainContentHeight() - lipgloss.Height(m.commandsBrowseFixedBlock(width))
+	if height < 0 {
+		return 0, false
+	}
+	if width <= 0 || height <= 1 || len(m.cmdRows) == 0 {
+		return height, false
+	}
+	firstRow := firstRenderedLines(m.renderCommandEntry(width, 0), 1)
+	minimumBlock := m.categoryHeaderBlock(width, m.cmdRows[0].Group) + "\n\n" + firstRow
+	if height > lipgloss.Height(minimumBlock) {
+		return height - 1, true
+	}
+	return height, false
 }
 
 // renderCommandViewport renders complete entries until the next entry would
@@ -325,7 +380,7 @@ func (m *Model) commandRowMarker(width int, focused, selected bool) string {
 func (m *Model) commandStatusBlock(width int) string {
 	var parts []string
 	if m.hasBrowseSelection() {
-		parts = append(parts, fmt.Sprintf("%d of %d", m.browseCursor+1, len(m.cmdRows)))
+		parts = append(parts, fmt.Sprintf("Item %d of %d", m.browseCursor+1, len(m.cmdRows)))
 	}
 	if count := len(m.multiSelected); count > 0 {
 		parts = append(parts, fmt.Sprintf("%d selected", count))
