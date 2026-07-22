@@ -104,8 +104,15 @@ func (m *Model) aliasListView(width int) string {
 		b.WriteString(m.styles.EmptyHint.Width(width).Render("No managed aliases yet. Add one from the menu."))
 		return b.String()
 	}
+	preferredAliasWidth := 22
+	if width >= 64 {
+		for _, entry := range rows {
+			preferredAliasWidth = max(preferredAliasWidth, lipgloss.Width(strings.TrimSpace(entry.Command)))
+		}
+		preferredAliasWidth = min(preferredAliasWidth, min(40, width*2/5+2))
+	}
 	for i, e := range rows {
-		markerW, commandW, gap, targetW := responsiveColumnWidths(width, 2, 22, 8, 8)
+		markerW, commandW, gap, targetW := responsiveColumnWidths(width, 2, preferredAliasWidth, 8, 8)
 		gutter := lipgloss.NewStyle().Width(markerW).Align(lipgloss.Left).Render("")
 		if i == m.aliasViewCursor {
 			gutter = lipgloss.NewStyle().Width(markerW).Align(lipgloss.Left).Render(m.styles.SelCaret.Render(truncateScanTail("›", markerW)))

@@ -91,13 +91,14 @@ func TestRenderedCommandRowsUseLiteralResponsiveColumnGaps(t *testing.T) {
 		{width: 27, gap: 1},
 	}
 	for _, tt := range tests {
-		markerW, commandW, gap, _ := browseColumnWidths(tt.width)
 		m := newCommandTestModel([]model.Entry{{
 			ID:          1,
-			Command:     strings.Repeat("c", commandW),
+			Command:     strings.Repeat("c", comfortableCommandWidth),
 			Description: "DESC",
 			Tags:        []string{"Category"},
 		}}, 2)
+		markerW, commandW, gap, _ := m.contentAwareBrowseColumnWidths(tt.width)
+		m.cmdRows[0].Entry.Command = strings.Repeat("c", commandW)
 		m.multiSelected[1] = struct{}{}
 		rendered := m.renderCommandEntry(tt.width, 0)
 		plain := stripANSI(rendered)
@@ -110,26 +111,53 @@ func TestRenderedCommandRowsUseLiteralResponsiveColumnGaps(t *testing.T) {
 		}
 	}
 
-	markerW, commandW, gap, _ := browseColumnWidths(76)
 	m := newCommandTestModel([]model.Entry{{
 		ID:          1,
-		Command:     strings.Repeat("x", commandW-1),
+		Command:     strings.Repeat("x", comfortableCommandWidth-1),
 		Description: "DESC",
 		Tags:        []string{"Category"},
 	}}, 2)
+	markerW, commandW, gap, _ := m.contentAwareBrowseColumnWidths(76)
 	m.multiSelected[1] = struct{}{}
 	assertRenderedGap(t, stripANSI(m.renderCommandEntry(76, 0)), 76, markerW, commandW, gap, "DESC")
 }
 
+func TestWideCommandColumnExpandsForVisibleContent(t *testing.T) {
+	const width = 76
+	const command = "dssh add 'name' 'root@ip' 'pass'"
+	m := newCommandTestModel([]model.Entry{{
+		ID:          1,
+		Command:     command,
+		Description: "DESC",
+		Tags:        []string{"Category"},
+	}}, 2)
+	m.multiSelected[1] = struct{}{}
+	markerW, commandW, gap, descW := m.contentAwareBrowseColumnWidths(width)
+	if measured := runewidth.StringWidth(command); measured != 32 {
+		t.Fatalf("representative command width = %d, want 32", measured)
+	}
+	if commandW != 32 || gap != 4 || descW != 36 {
+		t.Fatalf("wide content-aware columns = %d/%d/%d/%d, want 4/32/4/36", markerW, commandW, gap, descW)
+	}
+	plain := stripANSI(m.renderCommandEntry(width, 0))
+	if strings.Count(plain, "\n") != 0 || !strings.Contains(plain, command) {
+		t.Fatalf("ordinary wide command wrapped unexpectedly: %q", plain)
+	}
+	assertRenderedGap(t, plain, width, markerW, commandW, gap, "DESC")
+}
+
 func TestWrappedCommandRowsStayBoundedAndKeepAllocatedGap(t *testing.T) {
 	const width = 76
-	markerW, commandW, gap, _ := browseColumnWidths(width)
 	m := newCommandTestModel([]model.Entry{{
 		ID:          1,
 		Command:     strings.Repeat("long command ", 7),
 		Description: strings.Repeat("long description ", 9),
 		Tags:        []string{"Category"},
 	}}, 2)
+	markerW, commandW, gap, descW := m.contentAwareBrowseColumnWidths(width)
+	if commandW != 32 || descW != 36 {
+		t.Fatalf("capped wide columns = %d/%d, want 32/36", commandW, descW)
+	}
 	m.multiSelected[1] = struct{}{}
 	plain := stripANSI(m.renderCommandEntry(width, 0))
 	lines := strings.Split(plain, "\n")
@@ -165,6 +193,21 @@ func TestRenderedAliasRowsUseLiteralResponsiveColumnGaps(t *testing.T) {
 		}
 		assertRenderedGap(t, line, width, markerW, commandW, gap, "TARGET")
 	}
+
+	m := New(Options{}).(*Model)
+	m.aliasPhase = aliasPhaseView
+	m.allEntries = []model.Entry{{
+		ID:           1,
+		Command:      strings.Repeat("a", 32),
+		Target:       strings.Repeat("target ", 12),
+		Type:         model.EntryTypeAlias,
+		ManagedAlias: true,
+	}}
+	for _, line := range strings.Split(stripANSI(m.aliasListView(76)), "\n") {
+		if got := runewidth.StringWidth(line); got > 76 {
+			t.Fatalf("content-aware alias line width %d exceeds 76: %q", got, line)
+		}
+	}
 }
 
 func TestPriorityCommandFooterLabelsOrderAndDiscoverability(t *testing.T) {
@@ -192,6 +235,10 @@ func TestPriorityCommandFooterLabelsOrderAndDiscoverability(t *testing.T) {
 	assertNoUnclearFooterTerms(t, wide)
 
 	priorityKeys := []string{"A", "E", "D", "Esc", "Q", "↑↓", "Space", "Enter", "/", "F", "Ctrl+A", "T", "C", "[ ]", "PgUp/PgDn", "Home/End"}
+	completeHints := make(map[string]struct{}, len(labels))
+	for _, label := range labels {
+		completeHints[label] = struct{}{}
+	}
 	for width := 7; width <= 220; width++ {
 		m.width = width
 		footer := stripANSI(m.footerContent())
@@ -200,6 +247,13 @@ func TestPriorityCommandFooterLabelsOrderAndDiscoverability(t *testing.T) {
 		}
 		if got, limit := runewidth.StringWidth(footer), m.footerAvailableWidth(); got > limit {
 			t.Fatalf("footer width %d rendered %d, limit %d: %q", width, got, limit, footer)
+		}
+		if footer != "?" {
+			for _, hint := range strings.Split(footer, " │ ") {
+				if _, ok := completeHints[hint]; !ok {
+					t.Fatalf("footer width %d contains non-atomic hint %q: %q", width, hint, footer)
+				}
+			}
 		}
 		missingHigherPriority := false
 		for _, key := range priorityKeys {
@@ -216,15 +270,20 @@ func TestPriorityCommandFooterLabelsOrderAndDiscoverability(t *testing.T) {
 
 	m.width = 40
 	narrow := stripANSI(m.footerContent())
-	for _, key := range []string{"A", "E", "D", "Esc", "Q", "↑↓", "?"} {
-		if !footerHasKey(narrow, key) {
-			t.Fatalf("narrow footer lost high-priority %q: %q", key, narrow)
-		}
+	if want := "A Add │ E Edit │ D Delete │ ? Help"; narrow != want {
+		t.Fatalf("narrow footer = %q, want %q", narrow, want)
 	}
-	for _, key := range []string{"Ctrl+A", "T", "C", "[ ]", "PgUp/PgDn", "Home/End"} {
-		if footerHasKey(narrow, key) {
-			t.Fatalf("narrow footer retained secondary %q ahead of essentials: %q", key, narrow)
-		}
+	m.width = 60
+	if got, want := stripANSI(m.footerContent()), "A Add │ E Edit │ D Delete │ Esc Back │ Q Quit │ ? Help"; got != want {
+		t.Fatalf("medium footer = %q, want %q", got, want)
+	}
+	m.width = 80
+	if got, want := stripANSI(m.footerContent()), "A Add │ E Edit │ D Delete │ Esc Back │ Q Quit │ ↑↓ Navigate │ ? Help"; got != want {
+		t.Fatalf("screenshot-width footer = %q, want %q", got, want)
+	}
+	m.width = 7
+	if got := stripANSI(m.footerContent()); got != "?" {
+		t.Fatalf("emergency footer = %q, want ?", got)
 	}
 }
 
@@ -405,7 +464,7 @@ func TestHelpSelectionMarkerWidthAccountingRegression(t *testing.T) {
 	m := newCommandTestModel([]model.Entry{{ID: 1, Command: strings.Repeat("x", 40), Description: strings.Repeat("y", 40), Tags: []string{"Category"}}}, 6)
 	m.multiSelected[1] = struct{}{}
 	for _, width := range []int{0, 1, 5, 21, 40, 76} {
-		marker, command, gap, description := browseColumnWidths(width)
+		marker, command, gap, description := m.contentAwareBrowseColumnWidths(width)
 		if marker+command+gap+description > width {
 			t.Fatalf("width %d columns overflow: %d/%d/%d/%d", width, marker, command, gap, description)
 		}

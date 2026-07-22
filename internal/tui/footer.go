@@ -8,11 +8,9 @@ import (
 
 // footPart is one footer action: key (bright) + short label (muted).
 type footPart struct {
-	key        string
-	label      string
-	shortLabel string
-	compactKey string
-	keep       bool
+	key   string
+	label string
+	keep  bool
 }
 
 func (m *Model) renderFooter(parts []footPart) string {
@@ -23,24 +21,23 @@ func (m *Model) renderFooter(parts []footPart) string {
 	var chosen []footPart
 	for _, part := range parts {
 		candidate := append(append([]footPart(nil), chosen...), part)
-		if lipgloss.Width(m.renderFooterParts(candidate, false)) > available {
-			continue
+		if lipgloss.Width(m.renderFooterParts(candidate)) > available {
+			break
 		}
 		chosen = candidate
 	}
-	return m.renderFooterParts(chosen, false)
+	return m.renderFooterParts(chosen)
 }
 
-// renderPriorityFooter keeps the longest compact priority prefix that fits,
-// while always reserving room for the discoverability action marked keep. It
-// then expands labels in priority order without dropping a higher-priority
-// action to make room for a lower-priority one.
+// renderPriorityFooter reserves the complete discoverability hint, then keeps
+// the longest priority prefix whose complete key-and-description hints fit.
+// Only the reserved hint may fall back to its bare key at emergency widths.
 func (m *Model) renderPriorityFooter(parts []footPart) string {
 	available := m.footerAvailableWidth()
 	if available <= 0 {
 		return ""
 	}
-	if rendered := m.renderFooterParts(parts, false); lipgloss.Width(rendered) <= available {
+	if rendered := m.renderFooterParts(parts); lipgloss.Width(rendered) <= available {
 		return rendered
 	}
 
@@ -54,7 +51,11 @@ func (m *Model) renderPriorityFooter(parts []footPart) string {
 	selected := make([]bool, len(parts))
 	if kept >= 0 {
 		selected[kept] = true
-		if lipgloss.Width(m.renderSelectedFooterParts(parts, selected, nil)) > available {
+		if lipgloss.Width(m.renderSelectedFooterParts(parts, selected)) > available {
+			fallback := m.styles.FooterKey.Render(parts[kept].key)
+			if lipgloss.Width(fallback) <= available {
+				return fallback
+			}
 			return ""
 		}
 	}
@@ -64,71 +65,34 @@ func (m *Model) renderPriorityFooter(parts []footPart) string {
 			continue
 		}
 		selected[i] = true
-		if lipgloss.Width(m.renderSelectedFooterParts(parts, selected, nil)) > available {
+		if lipgloss.Width(m.renderSelectedFooterParts(parts, selected)) > available {
 			selected[i] = false
 			break
 		}
 	}
-
-	levels := make([]int, len(parts))
-	for i := range parts {
-		if !selected[i] {
-			continue
-		}
-		for level := 1; level <= 2; level++ {
-			levels[i] = level
-			if lipgloss.Width(m.renderSelectedFooterParts(parts, selected, levels)) > available {
-				levels[i] = level - 1
-				break
-			}
-		}
-	}
-	return m.renderSelectedFooterParts(parts, selected, levels)
+	return m.renderSelectedFooterParts(parts, selected)
 }
 
-func (m *Model) renderSelectedFooterParts(parts []footPart, selected []bool, levels []int) string {
+func (m *Model) renderSelectedFooterParts(parts []footPart, selected []bool) string {
 	var chosen []footPart
 	for i, part := range parts {
 		if !selected[i] {
 			continue
 		}
-		level := 0
-		if levels != nil {
-			level = levels[i]
-		}
-		if level == 0 {
-			part.label = ""
-			if part.compactKey != "" {
-				part.key = part.compactKey
-			}
-		} else if level == 1 {
-			if part.shortLabel == "" {
-				part.label = ""
-				if part.compactKey != "" {
-					part.key = part.compactKey
-				}
-			} else {
-				part.label = part.shortLabel
-			}
-		}
 		chosen = append(chosen, part)
 	}
-	return m.renderFooterParts(chosen, false)
+	return m.renderFooterParts(chosen)
 }
 
-func (m *Model) renderFooterParts(parts []footPart, compact bool) string {
+func (m *Model) renderFooterParts(parts []footPart) string {
 	var b strings.Builder
 	sep := m.styles.FooterBar.Render(" │ ")
 	for i, part := range parts {
 		if i > 0 {
 			b.WriteString(sep)
 		}
-		keyText := part.key
-		if compact && part.compactKey != "" {
-			keyText = part.compactKey
-		}
-		b.WriteString(m.styles.FooterKey.Render(keyText))
-		if !compact && part.label != "" {
+		b.WriteString(m.styles.FooterKey.Render(part.key))
+		if part.label != "" {
 			b.WriteString(m.styles.FooterLbl.Render(" " + part.label))
 		}
 	}

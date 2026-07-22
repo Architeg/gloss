@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 )
 
 func (m *Model) commandsMainView(width int) string {
@@ -37,6 +38,8 @@ func (m *Model) banner(width int) string {
 const (
 	commandMarkerWidth         = 4
 	minimumCommandWidth        = 8
+	comfortableCommandWidth    = 18
+	maximumCommandWidth        = 40
 	minimumDescWidth           = 8
 	compactCommandScreenHeight = 12
 )
@@ -50,6 +53,22 @@ func browseColumnWidths(total int) (markerW, cmdW, gap, descW int) {
 		targetCommand = 12
 	}
 	return responsiveColumnWidths(total, commandMarkerWidth, targetCommand, minimumCommandWidth, minimumDescWidth)
+}
+
+func (m *Model) contentAwareBrowseColumnWidths(total int) (markerW, cmdW, gap, descW int) {
+	if total < 64 {
+		return browseColumnWidths(total)
+	}
+	preferred := comfortableCommandWidth
+	for _, row := range m.cmdRows {
+		preferred = max(preferred, runewidth.StringWidth(strings.TrimSpace(row.Entry.Command)))
+	}
+	// Two cells of tolerance keeps the share near 40% while avoiding an
+	// unnecessary wrap for ordinary commands near that boundary.
+	shareCap := total*2/5 + 2
+	preferred = min(preferred, shareCap)
+	preferred = min(preferred, maximumCommandWidth)
+	return responsiveColumnWidths(total, commandMarkerWidth, preferred, minimumCommandWidth, minimumDescWidth)
 }
 
 func responsiveColumnWidths(total, marker, target, minimum, minimumTail int) (markerW, leadingW, gap, tailW int) {
@@ -310,7 +329,7 @@ func (m *Model) renderCommandEntry(width, index int) string {
 		return ""
 	}
 	row := m.cmdRows[index]
-	markerW, cmdW, gap, descW := browseColumnWidths(width)
+	markerW, cmdW, gap, descW := m.contentAwareBrowseColumnWidths(width)
 	descRaw := strings.TrimSpace(row.Entry.Description)
 	cmdLines := wrapVisual(row.Entry.Command, cmdW)
 	descLines := wrapVisual(descRaw, descW)
