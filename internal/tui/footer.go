@@ -10,6 +10,7 @@ import (
 type footPart struct {
 	key        string
 	label      string
+	shortLabel string
 	compactKey string
 	keep       bool
 }
@@ -30,63 +31,89 @@ func (m *Model) renderFooter(parts []footPart) string {
 	return m.renderFooterParts(chosen, false)
 }
 
-func (m *Model) renderAdaptiveFooter(core, extra []footPart) string {
+// renderPriorityFooter keeps the longest compact priority prefix that fits,
+// while always reserving room for the discoverability action marked keep. It
+// then expands labels in priority order without dropping a higher-priority
+// action to make room for a lower-priority one.
+func (m *Model) renderPriorityFooter(parts []footPart) string {
 	available := m.footerAvailableWidth()
 	if available <= 0 {
 		return ""
 	}
-	all := append(append([]footPart(nil), core...), extra...)
-	if rendered := m.renderFooterParts(all, false); lipgloss.Width(rendered) <= available {
-		return rendered
-	}
-	if rendered := m.fitFooterParts(core, extra, false, available); rendered != "" {
-		return rendered
-	}
-	if rendered := m.fitFooterParts(core, extra, true, available); rendered != "" {
+	if rendered := m.renderFooterParts(parts, false); lipgloss.Width(rendered) <= available {
 		return rendered
 	}
 
-	var kept *footPart
-	for i := range core {
-		if core[i].keep {
-			part := core[i]
-			kept = &part
+	kept := -1
+	for i := range parts {
+		if parts[i].keep {
+			kept = i
 			break
 		}
 	}
-	if kept == nil {
-		return ""
+	selected := make([]bool, len(parts))
+	if kept >= 0 {
+		selected[kept] = true
+		if lipgloss.Width(m.renderSelectedFooterParts(parts, selected, nil)) > available {
+			return ""
+		}
 	}
-	keptRendered := m.renderFooterParts([]footPart{*kept}, true)
-	if lipgloss.Width(keptRendered) > available {
-		return ""
-	}
-	var chosen []footPart
-	for _, part := range core {
-		if part.keep {
+
+	for i := range parts {
+		if i == kept {
 			continue
 		}
-		candidate := append(append([]footPart(nil), chosen...), part, *kept)
-		if lipgloss.Width(m.renderFooterParts(candidate, true)) <= available {
-			chosen = append(chosen, part)
+		selected[i] = true
+		if lipgloss.Width(m.renderSelectedFooterParts(parts, selected, nil)) > available {
+			selected[i] = false
+			break
 		}
 	}
-	chosen = append(chosen, *kept)
-	return m.renderFooterParts(chosen, true)
+
+	levels := make([]int, len(parts))
+	for i := range parts {
+		if !selected[i] {
+			continue
+		}
+		for level := 1; level <= 2; level++ {
+			levels[i] = level
+			if lipgloss.Width(m.renderSelectedFooterParts(parts, selected, levels)) > available {
+				levels[i] = level - 1
+				break
+			}
+		}
+	}
+	return m.renderSelectedFooterParts(parts, selected, levels)
 }
 
-func (m *Model) fitFooterParts(core, extra []footPart, compact bool, available int) string {
-	if rendered := m.renderFooterParts(core, compact); lipgloss.Width(rendered) > available {
-		return ""
-	}
-	chosen := append([]footPart(nil), core...)
-	for _, part := range extra {
-		candidate := append(append([]footPart(nil), chosen...), part)
-		if lipgloss.Width(m.renderFooterParts(candidate, compact)) <= available {
-			chosen = candidate
+func (m *Model) renderSelectedFooterParts(parts []footPart, selected []bool, levels []int) string {
+	var chosen []footPart
+	for i, part := range parts {
+		if !selected[i] {
+			continue
 		}
+		level := 0
+		if levels != nil {
+			level = levels[i]
+		}
+		if level == 0 {
+			part.label = ""
+			if part.compactKey != "" {
+				part.key = part.compactKey
+			}
+		} else if level == 1 {
+			if part.shortLabel == "" {
+				part.label = ""
+				if part.compactKey != "" {
+					part.key = part.compactKey
+				}
+			} else {
+				part.label = part.shortLabel
+			}
+		}
+		chosen = append(chosen, part)
 	}
-	return m.renderFooterParts(chosen, compact)
+	return m.renderFooterParts(chosen, false)
 }
 
 func (m *Model) renderFooterParts(parts []footPart, compact bool) string {

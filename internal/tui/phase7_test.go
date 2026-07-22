@@ -399,7 +399,7 @@ func TestResponsiveFooterIsSingleLineAndWidthBounded(t *testing.T) {
 	}
 	m.width = 400
 	footer := m.footerContent()
-	for _, hint := range []string{"↑↓ Navigate", "Space Select", "Enter Details", "? Help", "Ctrl+A All visible", "T Bulk tags", "C Copy", "PgUp/PgDn Page", "Home/End First/last", "[ ] Categories"} {
+	for _, hint := range []string{"A Add", "E Edit", "D Delete", "Esc Back", "Q Quit", "↑↓ Navigate", "Space Select/deselect", "Enter Details", "/ Search", "F Filter by tag", "? Help", "Ctrl+A Select visible", "T Edit selected tags", "C Copy command", "[ ] Change category", "PgUp/PgDn Move page", "Home/End First/last"} {
 		if !strings.Contains(footer, hint) {
 			t.Fatalf("wide footer missing %q: %q", hint, footer)
 		}

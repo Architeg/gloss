@@ -209,58 +209,50 @@ func (m *Model) footerContent() string {
 		}
 	case ScreenCommands:
 		if m.commandHelpOpen {
-			return m.renderAdaptiveFooter(
-				[]footPart{
-					{key: "↑↓", label: "Scroll", compactKey: "↑↓"},
-					{key: "?", label: "Close help", compactKey: "?", keep: true},
-				},
-				[]footPart{
-					{key: "PgUp/PgDn", label: "Page", compactKey: "Pg"},
-					{key: "Home/End", label: "First/last", compactKey: "Home/End"},
-					{key: "Esc", label: "Close help", compactKey: "Esc"},
-					{key: "Q", label: "Quit", compactKey: "Q"},
-				},
-			)
+			return m.renderPriorityFooter([]footPart{
+				{key: "Esc", label: "Close help", compactKey: "Esc"},
+				{key: "Q", label: "Quit", compactKey: "Q"},
+				{key: "↑↓", label: "Scroll", compactKey: "↑↓"},
+				{key: "PgUp/PgDn", label: "Move page", compactKey: "PgUp/PgDn"},
+				{key: "Home/End", label: "First/last", compactKey: "Home/End"},
+				{key: "?", label: "Close help", compactKey: "?", keep: true},
+			})
 		}
 		switch m.cmdPhase {
 		case commandsBrowse:
 			if m.cmdFocus == commandsFocusSearch {
-				return m.renderFooter([]footPart{
-					{key: "Esc", label: "List"},
-					{key: "?", label: "Help"},
-					{key: "Q", label: "Quit"},
+				return m.renderPriorityFooter([]footPart{
+					{key: "Esc", label: "List", compactKey: "Esc"},
+					{key: "Q", label: "Quit", compactKey: "Q"},
+					{key: "?", label: "Help", compactKey: "?", keep: true},
 				})
 			}
 			if m.cmdFocus == commandsFocusTag {
-				return m.renderFooter([]footPart{
-					{key: "Esc", label: "List"},
-					{key: "?", label: "Help"},
-					{key: "Q", label: "Quit"},
+				return m.renderPriorityFooter([]footPart{
+					{key: "Esc", label: "List", compactKey: "Esc"},
+					{key: "Q", label: "Quit", compactKey: "Q"},
+					{key: "?", label: "Help", compactKey: "?", keep: true},
 				})
 			}
-			return m.renderAdaptiveFooter(
-				[]footPart{
-					{key: "↑↓", label: "Navigate", compactKey: "↑↓"},
-					{key: "Space", label: "Select", compactKey: "Space"},
-					{key: "Enter", label: "Details", compactKey: "Enter"},
-					{key: "?", label: "Help", compactKey: "?", keep: true},
-				},
-				[]footPart{
-					{key: "Ctrl+A", label: "All visible", compactKey: "Ctrl+A"},
-					{key: "T", label: "Bulk tags", compactKey: "T"},
-					{key: "C", label: "Copy", compactKey: "C"},
-					{key: "/", label: "Search", compactKey: "/"},
-					{key: "F", label: "Filter", compactKey: "F"},
-					{key: "[ ]", label: "Categories", compactKey: "[ ]"},
-					{key: "Home/End", label: "First/last", compactKey: "Home/End"},
-					{key: "PgUp/PgDn", label: "Page", compactKey: "Pg"},
-					{key: "A", label: "Add", compactKey: "A"},
-					{key: "E", label: "Edit", compactKey: "E"},
-					{key: "D", label: "Delete", compactKey: "D"},
-					{key: "Esc", label: "Back", compactKey: "Esc"},
-					{key: "Q", label: "Quit", compactKey: "Q"},
-				},
-			)
+			return m.renderPriorityFooter([]footPart{
+				{key: "A", label: "Add", compactKey: "A"},
+				{key: "E", label: "Edit", compactKey: "E"},
+				{key: "D", label: "Delete", compactKey: "D"},
+				{key: "Esc", label: "Back", compactKey: "Esc"},
+				{key: "Q", label: "Quit", compactKey: "Q"},
+				{key: "↑↓", label: "Navigate", compactKey: "↑↓"},
+				{key: "Space", label: "Select/deselect", shortLabel: "Select", compactKey: "Space"},
+				{key: "Enter", label: "Details", compactKey: "Enter"},
+				{key: "/", label: "Search", compactKey: "/"},
+				{key: "F", label: "Filter by tag", shortLabel: "Filter", compactKey: "F"},
+				{key: "?", label: "Help", compactKey: "?", keep: true},
+				{key: "Ctrl+A", label: "Select visible", compactKey: "Ctrl+A"},
+				{key: "T", label: "Edit selected tags", compactKey: "T"},
+				{key: "C", label: "Copy command", compactKey: "C"},
+				{key: "[ ]", label: "Change category", compactKey: "[ ]"},
+				{key: "PgUp/PgDn", label: "Move page", compactKey: "PgUp/PgDn"},
+				{key: "Home/End", label: "First/last", compactKey: "Home/End"},
+			})
 		case commandsDetail:
 			return m.renderFooter([]footPart{
 				{key: "Esc", label: "Back"},

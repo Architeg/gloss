@@ -1,11 +1,13 @@
 package tui
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 
 	"github.com/Architeg/gloss/internal/model"
 )
@@ -75,54 +77,165 @@ func TestVeryShortCommandScreenKeepsUsefulListContent(t *testing.T) {
 	}
 }
 
-func TestPreferredColumnGapOrderAndAliasSpacing(t *testing.T) {
+func TestRenderedCommandRowsUseLiteralResponsiveColumnGaps(t *testing.T) {
 	tests := []struct {
 		width int
 		gap   int
 	}{
 		{width: 76, gap: 4},
-		{width: 60, gap: 3},
-		{width: 40, gap: 2},
-		{width: 24, gap: 1},
-		{width: 0, gap: 0},
+		{width: 64, gap: 4},
+		{width: 63, gap: 3},
+		{width: 44, gap: 3},
+		{width: 43, gap: 2},
+		{width: 28, gap: 2},
+		{width: 27, gap: 1},
 	}
 	for _, tt := range tests {
-		if got := preferredColumnGap(tt.width); got != tt.gap {
-			t.Fatalf("preferredColumnGap(%d) = %d, want %d", tt.width, got, tt.gap)
+		markerW, commandW, gap, _ := browseColumnWidths(tt.width)
+		m := newCommandTestModel([]model.Entry{{
+			ID:          1,
+			Command:     strings.Repeat("c", commandW),
+			Description: "DESC",
+			Tags:        []string{"Category"},
+		}}, 2)
+		m.multiSelected[1] = struct{}{}
+		rendered := m.renderCommandEntry(tt.width, 0)
+		plain := stripANSI(rendered)
+		assertRenderedGap(t, plain, tt.width, markerW, commandW, gap, "DESC")
+		if gap != tt.gap {
+			t.Fatalf("width %d rendered gap %d, want %d", tt.width, gap, tt.gap)
+		}
+		if !strings.Contains(firstLine(plain), "›") || !strings.Contains(firstLine(plain), "✓") {
+			t.Fatalf("width %d omitted focus/selection markers: %q", tt.width, firstLine(plain))
 		}
 	}
-	marker, command, gap, target := responsiveColumnWidths(76, 2, 22, 8, 8)
-	if marker != 2 || command != 22 || gap != 4 || marker+command+gap+target != 76 {
-		t.Fatalf("wide alias columns = %d/%d/%d/%d", marker, command, gap, target)
+
+	markerW, commandW, gap, _ := browseColumnWidths(76)
+	m := newCommandTestModel([]model.Entry{{
+		ID:          1,
+		Command:     strings.Repeat("x", commandW-1),
+		Description: "DESC",
+		Tags:        []string{"Category"},
+	}}, 2)
+	m.multiSelected[1] = struct{}{}
+	assertRenderedGap(t, stripANSI(m.renderCommandEntry(76, 0)), 76, markerW, commandW, gap, "DESC")
+}
+
+func TestWrappedCommandRowsStayBoundedAndKeepAllocatedGap(t *testing.T) {
+	const width = 76
+	markerW, commandW, gap, _ := browseColumnWidths(width)
+	m := newCommandTestModel([]model.Entry{{
+		ID:          1,
+		Command:     strings.Repeat("long command ", 7),
+		Description: strings.Repeat("long description ", 9),
+		Tags:        []string{"Category"},
+	}}, 2)
+	m.multiSelected[1] = struct{}{}
+	plain := stripANSI(m.renderCommandEntry(width, 0))
+	lines := strings.Split(plain, "\n")
+	if len(lines) < 2 {
+		t.Fatalf("long command row did not wrap: %q", plain)
+	}
+	for _, line := range lines {
+		if got := runewidth.StringWidth(line); got > width {
+			t.Fatalf("wrapped command line width %d exceeds %d: %q", got, width, line)
+		}
+		if got := visualCellSlice(line, markerW+commandW, markerW+commandW+gap); got != strings.Repeat(" ", gap) {
+			t.Fatalf("wrapped command gap = %q, want %d literal spaces in %q", got, gap, line)
+		}
 	}
 }
 
-func TestAdaptiveCommandFooterLabelsAndDiscoverability(t *testing.T) {
+func TestRenderedAliasRowsUseLiteralResponsiveColumnGaps(t *testing.T) {
+	for _, width := range []int{76, 64, 63, 44, 43, 28, 27} {
+		markerW, commandW, gap, _ := responsiveColumnWidths(width, 2, 22, 8, 8)
+		m := New(Options{}).(*Model)
+		m.aliasPhase = aliasPhaseView
+		m.allEntries = []model.Entry{{
+			ID:           1,
+			Command:      strings.Repeat("a", commandW),
+			Target:       "TARGET",
+			Type:         model.EntryTypeAlias,
+			ManagedAlias: true,
+		}}
+		plain := stripANSI(m.aliasListView(width))
+		line := lineContaining(plain, "TARGET")
+		if line == "" {
+			t.Fatalf("width %d alias view omitted target: %q", width, plain)
+		}
+		assertRenderedGap(t, line, width, markerW, commandW, gap, "TARGET")
+	}
+}
+
+func TestPriorityCommandFooterLabelsOrderAndDiscoverability(t *testing.T) {
 	m := newCommandTestModel(commandEntries(2), 3)
-	m.width = 400
-	wide := m.footerContent()
-	for _, label := range []string{
-		"↑↓ Navigate", "Space Select", "Ctrl+A All visible", "T Bulk tags",
-		"C Copy", "/ Search", "F Filter", "[ ] Categories",
-		"Home/End First/last", "PgUp/PgDn Page", "Enter Details",
-		"Esc Back", "Q Quit", "? Help",
-	} {
+	m.width = 600
+	wide := stripANSI(m.footerContent())
+	labels := []string{
+		"A Add", "E Edit", "D Delete", "Esc Back", "Q Quit",
+		"↑↓ Navigate", "Space Select/deselect", "Enter Details", "/ Search",
+		"F Filter by tag", "? Help", "Ctrl+A Select visible",
+		"T Edit selected tags", "C Copy command", "[ ] Change category",
+		"PgUp/PgDn Move page", "Home/End First/last",
+	}
+	previous := -1
+	for _, label := range labels {
 		if !strings.Contains(wide, label) {
 			t.Fatalf("wide footer missing %q: %q", label, wide)
 		}
+		position := strings.Index(wide, label)
+		if position <= previous {
+			t.Fatalf("footer priority order is wrong at %q: %q", label, wide)
+		}
+		previous = position
 	}
-	if strings.Contains(wide, "Groups") || strings.Contains(wide, "Bounds") || strings.Contains(wide, "^A") {
-		t.Fatalf("wide footer retained ambiguous terminology: %q", wide)
+	assertNoUnclearFooterTerms(t, wide)
+
+	priorityKeys := []string{"A", "E", "D", "Esc", "Q", "↑↓", "Space", "Enter", "/", "F", "Ctrl+A", "T", "C", "[ ]", "PgUp/PgDn", "Home/End"}
+	for width := 7; width <= 220; width++ {
+		m.width = width
+		footer := stripANSI(m.footerContent())
+		if !strings.Contains(footer, "?") {
+			t.Fatalf("footer width %d lost reserved help hint: %q", width, footer)
+		}
+		if got, limit := runewidth.StringWidth(footer), m.footerAvailableWidth(); got > limit {
+			t.Fatalf("footer width %d rendered %d, limit %d: %q", width, got, limit, footer)
+		}
+		missingHigherPriority := false
+		for _, key := range priorityKeys {
+			present := footerHasKey(footer, key)
+			if missingHigherPriority && present {
+				t.Fatalf("footer width %d let %q displace a higher-priority action: %q", width, key, footer)
+			}
+			if !present {
+				missingHigherPriority = true
+			}
+		}
+		assertNoUnclearFooterTerms(t, footer)
 	}
 
-	for _, width := range []int{7, 8, 12, 20, 40, 80} {
-		m.width = width
-		footer := m.footerContent()
-		if !strings.Contains(footer, "?") {
-			t.Fatalf("footer width %d lost help discoverability: %q", width, footer)
+	m.width = 40
+	narrow := stripANSI(m.footerContent())
+	for _, key := range []string{"A", "E", "D", "Esc", "Q", "↑↓", "?"} {
+		if !footerHasKey(narrow, key) {
+			t.Fatalf("narrow footer lost high-priority %q: %q", key, narrow)
 		}
-		if got, limit := lipgloss.Width(footer), m.footerAvailableWidth(); got > limit {
-			t.Fatalf("footer width %d rendered %d, limit %d: %q", width, got, limit, footer)
+	}
+	for _, key := range []string{"Ctrl+A", "T", "C", "[ ]", "PgUp/PgDn", "Home/End"} {
+		if footerHasKey(narrow, key) {
+			t.Fatalf("narrow footer retained secondary %q ahead of essentials: %q", key, narrow)
+		}
+	}
+}
+
+func TestCommandHelpUsesBeginnerReadableBulkDescriptions(t *testing.T) {
+	all := strings.Join((&Model{styles: newStyles()}).commandHelpLines(120), "\n")
+	for _, want := range []string{
+		"Select or deselect all commands visible under the current search and tag filters.",
+		"Add or remove tags from the selected commands.",
+	} {
+		if !strings.Contains(stripANSI(all), want) {
+			t.Fatalf("shortcut help missing %q: %q", want, stripANSI(all))
 		}
 	}
 }
@@ -300,6 +413,85 @@ func TestHelpSelectionMarkerWidthAccountingRegression(t *testing.T) {
 			if lipgloss.Width(line) > width {
 				t.Fatalf("selected row overflow at width %d: %q", width, line)
 			}
+		}
+	}
+}
+
+var ansiSequence = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func stripANSI(s string) string {
+	return ansiSequence.ReplaceAllString(s, "")
+}
+
+func firstLine(s string) string {
+	if before, _, ok := strings.Cut(s, "\n"); ok {
+		return before
+	}
+	return s
+}
+
+func lineContaining(s, needle string) string {
+	for _, line := range strings.Split(s, "\n") {
+		if strings.Contains(line, needle) {
+			return line
+		}
+	}
+	return ""
+}
+
+func visualCellSlice(s string, start, end int) string {
+	var b strings.Builder
+	position := 0
+	for _, r := range s {
+		width := runewidth.RuneWidth(r)
+		if position >= start && position+width <= end {
+			b.WriteRune(r)
+		}
+		position += width
+		if position >= end {
+			break
+		}
+	}
+	return b.String()
+}
+
+func assertRenderedGap(t *testing.T, rendered string, available, markerW, leadingW, gap int, tail string) {
+	t.Helper()
+	line := lineContaining(rendered, tail)
+	if line == "" {
+		t.Fatalf("rendered row omitted %q: %q", tail, rendered)
+	}
+	byteIndex := strings.Index(line, tail)
+	tailStart := runewidth.StringWidth(line[:byteIndex])
+	wantStart := markerW + leadingW + gap
+	if tailStart != wantStart {
+		t.Fatalf("%q starts at cell %d, want %d (marker=%d leading=%d gap=%d): %q", tail, tailStart, wantStart, markerW, leadingW, gap, line)
+	}
+	literalGap := visualCellSlice(line, markerW+leadingW, tailStart)
+	if literalGap != strings.Repeat(" ", gap) {
+		t.Fatalf("allocated column gap = %q, want %d literal spaces: %q", literalGap, gap, line)
+	}
+	for _, renderedLine := range strings.Split(rendered, "\n") {
+		if got := runewidth.StringWidth(renderedLine); got > available {
+			t.Fatalf("rendered line width %d exceeds %d: %q", got, available, renderedLine)
+		}
+	}
+}
+
+func footerHasKey(footer, key string) bool {
+	for _, part := range strings.Split(footer, " │ ") {
+		if part == key || strings.HasPrefix(part, key+" ") {
+			return true
+		}
+	}
+	return false
+}
+
+func assertNoUnclearFooterTerms(t *testing.T, footer string) {
+	t.Helper()
+	for _, forbidden := range []string{"^A", "All visible", "Bulk tags", "Bounds", "Groups"} {
+		if strings.Contains(footer, forbidden) {
+			t.Fatalf("footer contains unclear term %q: %q", forbidden, footer)
 		}
 	}
 }

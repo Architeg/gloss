@@ -16,9 +16,9 @@ type commandHelpItem struct {
 var commandHelpItems = []commandHelpItem{
 	{keys: "↑/↓ and j/k", description: "Move between commands"},
 	{keys: "Space", description: "Select or deselect the focused command"},
-	{keys: "Ctrl+A", description: "Select or deselect all commands visible under the current filter"},
+	{keys: "Ctrl+A", description: "Select or deselect all commands visible under the current search and tag filters."},
 	{keys: "C", description: "Copy the focused command"},
-	{keys: "T", description: "Add or remove tags from selected commands"},
+	{keys: "T", description: "Add or remove tags from the selected commands."},
 	{keys: "/", description: "Search commands"},
 	{keys: "F", description: "Filter by tag"},
 	{keys: "[ / ]", description: "Move to the previous or next category"},
