@@ -55,21 +55,25 @@ func displayGroup(e model.Entry) string {
 	return primary
 }
 
+func samePrimaryGroup(a, b model.Entry) bool {
+	aTag, aTagged := model.PrimaryTag(a)
+	bTag, bTagged := model.PrimaryTag(b)
+	if aTagged != bTagged {
+		return false
+	}
+	return !aTagged || model.EqualTag(aTag, bTag)
+}
+
 func buildCmdRows(entries []model.Entry) []cmdRow {
 	sorted := model.SortEntriesByPrimaryTag(entries)
 	rows := make([]cmdRow, 0, len(sorted))
-	var previousTag string
-	previousTagged := false
 	for i, entry := range sorted {
-		primary, tagged := model.PrimaryTag(entry)
-		showGroup := i == 0 || tagged != previousTagged || (tagged && !model.EqualTag(primary, previousTag))
+		showGroup := i == 0 || !samePrimaryGroup(sorted[i-1], entry)
 		rows = append(rows, cmdRow{
 			Group:     displayGroup(entry),
 			ShowGroup: showGroup,
 			Entry:     entry,
 		})
-		previousTag = primary
-		previousTagged = tagged
 	}
 	return rows
 }

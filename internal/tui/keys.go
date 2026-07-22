@@ -6,13 +6,17 @@ import (
 )
 
 type bindings struct {
-	Up    key.Binding
-	Down  key.Binding
-	Enter key.Binding
-	Quit  key.Binding
-	Back  key.Binding
-	Left  key.Binding
-	Right key.Binding
+	Up       key.Binding
+	Down     key.Binding
+	Home     key.Binding
+	End      key.Binding
+	PageUp   key.Binding
+	PageDown key.Binding
+	Enter    key.Binding
+	Quit     key.Binding
+	Back     key.Binding
+	Left     key.Binding
+	Right    key.Binding
 }
 
 func newBindings() bindings {
@@ -22,6 +26,18 @@ func newBindings() bindings {
 		),
 		Down: key.NewBinding(
 			key.WithKeys("down", "j"),
+		),
+		Home: key.NewBinding(
+			key.WithKeys("home"),
+		),
+		End: key.NewBinding(
+			key.WithKeys("end"),
+		),
+		PageUp: key.NewBinding(
+			key.WithKeys("pgup"),
+		),
+		PageDown: key.NewBinding(
+			key.WithKeys("pgdown"),
 		),
 		Enter: key.NewBinding(
 			key.WithKeys("enter"),

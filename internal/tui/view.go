@@ -11,7 +11,18 @@ const homeLabelW = 14
 
 // View implements tea.Model.
 func (m *Model) View() string {
-	w, h := m.width, m.height
+	w, _, cw, mainH, footerBlock := m.layoutMetrics()
+
+	main := m.styles.Padding.Render(m.mainBlock(cw))
+	main = lipgloss.NewStyle().Width(w).Height(mainH).Render(
+		lipgloss.Place(w, mainH, lipgloss.Left, lipgloss.Top, main),
+	)
+
+	return lipgloss.JoinVertical(lipgloss.Left, main, footerBlock)
+}
+
+func (m *Model) layoutMetrics() (w, h, contentW, mainH int, footerBlock string) {
+	w, h = m.width, m.height
 	if w <= 0 {
 		w = 80
 	}
@@ -21,20 +32,23 @@ func (m *Model) View() string {
 
 	footerStr := m.footerContent()
 	footerLine := lipgloss.NewStyle().MarginTop(1).Render(footerStr)
-	footerBlock := m.styles.Padding.Render(footerLine)
+	footerBlock = m.styles.Padding.Render(footerLine)
 	footerH := lipgloss.Height(footerBlock)
-	mainH := h - footerH
+	mainH = h - footerH
 	if mainH < 1 {
 		mainH = 1
 	}
+	contentW = contentWidth(w)
+	return w, h, contentW, mainH, footerBlock
+}
 
-	cw := contentWidth(w)
-	main := m.styles.Padding.Render(m.mainBlock(cw))
-	main = lipgloss.NewStyle().Width(w).Height(mainH).Render(
-		lipgloss.Place(w, mainH, lipgloss.Left, lipgloss.Top, main),
-	)
-
-	return lipgloss.JoinVertical(lipgloss.Left, main, footerBlock)
+func (m *Model) mainContentHeight() int {
+	_, _, _, mainH, _ := m.layoutMetrics()
+	height := mainH - m.styles.Padding.GetVerticalFrameSize()
+	if height < 0 {
+		return 0
+	}
+	return height
 }
 
 func (m *Model) mainBlock(width int) string {
@@ -215,6 +229,9 @@ func (m *Model) footerContent() string {
 				{key: "D", label: "Delete"},
 				{key: "A", label: "Add"},
 				{key: "↑↓", label: "Move"},
+				{key: "Pg↑↓", label: "Page"},
+				{key: "Home/End", label: "Bounds"},
+				{key: "[ ]", label: "Groups"},
 				{key: "Enter", label: "Open"},
 				{key: "Esc", label: "Back"},
 				{key: "Q", label: "Quit"},

@@ -123,15 +123,7 @@ func (m *Model) categoryHeaderBlock(width int, name string) string {
 
 func (m *Model) commandsBrowseView(width int) string {
 	var b strings.Builder
-
-	b.WriteString(m.banner(width))
-	b.WriteString(m.sectionTitleBlock(width, "Commands"))
-	b.WriteString("\n\n")
-
-	b.WriteString(m.filterStatusBlock(width))
-	b.WriteString("\n")
-
-	cmdW, gap, descW := browseColumnWidths(width)
+	b.WriteString(m.commandsBrowseFixedBlock(width))
 
 	if len(m.allEntries) == 0 {
 		msg := "No commands saved yet.\n\nPress A to add one, or choose Add from the home menu."
@@ -143,64 +135,124 @@ func (m *Model) commandsBrowseView(width int) string {
 		b.WriteString(m.styles.EmptyHint.Width(width).Render(msg))
 		return b.String()
 	}
+	rows, _ := m.renderCommandViewport(width, m.commandListHeight(width), m.browseOffset)
+	b.WriteString(rows)
+	return b.String()
+}
 
-	for i, row := range m.cmdRows {
-		if row.ShowGroup {
-			if i > 0 {
-				b.WriteString("\n\n")
-			}
-			b.WriteString(m.categoryHeaderBlock(width, row.Group))
-			b.WriteString("\n\n")
-		}
+func (m *Model) commandsBrowseFixedBlock(width int) string {
+	var b strings.Builder
+	b.WriteString(m.banner(width))
+	b.WriteString(m.sectionTitleBlock(width, "Commands"))
+	b.WriteString("\n\n")
+	b.WriteString(m.filterStatusBlock(width))
+	b.WriteString("\n")
+	return b.String()
+}
 
-		descRaw := strings.TrimSpace(row.Entry.Description)
-		cmdLines := wrapVisual(row.Entry.Command, cmdW)
-		descLines := wrapVisual(descRaw, descW)
+func (m *Model) commandListHeight(width int) int {
+	height := m.mainContentHeight() - lipgloss.Height(m.commandsBrowseFixedBlock(width))
+	if height < 0 {
+		return 0
+	}
+	return height
+}
 
-		selected := i == m.browseCursor && m.cmdFocus == commandsFocusList
-		rowHeight := maxInt(len(cmdLines), len(descLines))
-
-		for lineIdx := 0; lineIdx < rowHeight; lineIdx++ {
-			gutter := "  "
-			if selected && lineIdx == 0 {
-				gutter = m.styles.SelCaret.Render("› ")
-			}
-
-			cmdText := ""
-			if lineIdx < len(cmdLines) {
-				cmdText = cmdLines[lineIdx]
-			}
-
-			descText := ""
-			if lineIdx < len(descLines) {
-				descText = descLines[lineIdx]
-			}
-
-			var cmdCell, descCell string
-			if selected {
-				cmdCell = m.styles.CmdSelected.Width(cmdW).Render(cmdText)
-				descCell = m.styles.DescSelected.Width(descW).Render(descText)
-			} else {
-				cmdCell = m.styles.CmdCol.Width(cmdW).Render(cmdText)
-				descCell = m.styles.DescCol.Width(descW).Render(descText)
-			}
-
-			line := lipgloss.JoinHorizontal(
-				lipgloss.Top,
-				gutter,
-				cmdCell,
-				strings.Repeat(" ", gap),
-				descCell,
-			)
-
-			b.WriteString(line)
-
-			if lineIdx < rowHeight-1 {
-				b.WriteString("\n")
+// renderCommandViewport renders complete entries until the next entry would
+// exceed height. The first entry is always represented when height is positive;
+// its group heading is omitted only when that is necessary to expose the row.
+func (m *Model) renderCommandViewport(width, height, start int) (string, int) {
+	if height <= 0 || len(m.cmdRows) == 0 {
+		return "", clamp(start, 0, len(m.cmdRows))
+	}
+	start = clamp(start, 0, len(m.cmdRows)-1)
+	var b strings.Builder
+	end := start
+	for i := start; i < len(m.cmdRows); i++ {
+		entry := m.renderCommandEntry(width, i)
+		var prefix string
+		if i == start {
+			prefix = m.categoryHeaderBlock(width, m.cmdRows[i].Group) + "\n\n"
+		} else {
+			prefix = "\n"
+			if m.cmdRows[i].ShowGroup {
+				prefix += "\n\n" + m.categoryHeaderBlock(width, m.cmdRows[i].Group) + "\n\n"
 			}
 		}
+		candidate := prefix + entry
+		if lipgloss.Height(b.String()+candidate) > height {
+			if i != start {
+				break
+			}
+			candidate = entry
+			if lipgloss.Height(candidate) > height {
+				candidate = firstRenderedLines(candidate, height)
+			}
+		}
+		b.WriteString(candidate)
+		end = i + 1
+	}
+	return b.String(), end
+}
 
-		if i < len(m.cmdRows)-1 {
+func firstRenderedLines(rendered string, height int) string {
+	if height <= 0 {
+		return ""
+	}
+	lines := strings.Split(rendered, "\n")
+	if len(lines) <= height {
+		return rendered
+	}
+	return strings.Join(lines[:height], "\n")
+}
+
+func (m *Model) renderCommandEntry(width, index int) string {
+	if index < 0 || index >= len(m.cmdRows) {
+		return ""
+	}
+	row := m.cmdRows[index]
+	cmdW, gap, descW := browseColumnWidths(width)
+	descRaw := strings.TrimSpace(row.Entry.Description)
+	cmdLines := wrapVisual(row.Entry.Command, cmdW)
+	descLines := wrapVisual(descRaw, descW)
+	selected := index == m.browseCursor && m.cmdFocus == commandsFocusList
+	rowHeight := maxInt(len(cmdLines), len(descLines))
+	var b strings.Builder
+
+	for lineIdx := 0; lineIdx < rowHeight; lineIdx++ {
+		gutter := "  "
+		if selected && lineIdx == 0 {
+			gutter = m.styles.SelCaret.Render("› ")
+		}
+
+		cmdText := ""
+		if lineIdx < len(cmdLines) {
+			cmdText = cmdLines[lineIdx]
+		}
+		descText := ""
+		if lineIdx < len(descLines) {
+			descText = descLines[lineIdx]
+		}
+
+		var cmdCell, descCell string
+		if selected {
+			cmdCell = m.styles.CmdSelected.Width(cmdW).Render(cmdText)
+			descCell = m.styles.DescSelected.Width(descW).Render(descText)
+		} else {
+			cmdCell = m.styles.CmdCol.Width(cmdW).Render(cmdText)
+			descCell = m.styles.DescCol.Width(descW).Render(descText)
+		}
+
+		line := lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			gutter,
+			cmdCell,
+			strings.Repeat(" ", gap),
+			descCell,
+		)
+		b.WriteString(line)
+
+		if lineIdx < rowHeight-1 {
 			b.WriteString("\n")
 		}
 	}

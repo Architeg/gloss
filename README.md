@@ -13,9 +13,9 @@
   <a href="https://github.com/Architeg/gloss/commits/main">
     <img alt="Commit activity" src="https://img.shields.io/github/commit-activity/m/Architeg/gloss?label=commits"/>
   </a>
-<a href="https://github.com/Architeg/gloss/stargazers">
-  <img alt="GitHub stars" src="https://img.shields.io/github/stars/Architeg/gloss?label=Stars&style=flat" />
-</a>
+  <a href="https://github.com/Architeg/gloss/stargazers">
+    <img alt="GitHub stars" src="https://img.shields.io/github/stars/Architeg/gloss?label=Stars&style=flat" />
+  </a>
   <a href="https://worksfine.dev">
     <img alt="WorksFine.dev" src="https://img.shields.io/badge/WorksFine.dev-Apps%20%26%20Tools-111827"/>
   </a>
@@ -30,13 +30,8 @@
   <a href="https://www.uneed.best/tool/gloss">
     <img src="https://www.uneed.best/EMBED1B.png" alt="Published on Uneed" height="44" />
   </a>
-  &nbsp;
   <a href="https://www.producthunt.com/products/gloss?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-gloss">
     <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1138925&theme=dark&t=1777916961103" alt="Gloss - A command glossary for your terminal | Product Hunt" height="40" />
-  </a>
-  &nbsp;
-  <a href="https://www.shipit.buzz/products/gloss?ref=badge">
-    <img src="https://www.shipit.buzz/api/products/gloss/badge?theme=dark" alt="Featured on Shipit" height="38" />
   </a>
 </p>
 

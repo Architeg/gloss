@@ -42,6 +42,9 @@ type Model struct {
 	cmdFocus     commandsFocus
 	cmdRows      []cmdRow
 	browseCursor int
+	browseOffset int
+	selectedID   int64
+	restoreID    int64
 	detailEntry  model.Entry
 
 	searchTI textinput.Model
@@ -114,6 +117,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.searchTI.Width = max(cw-8, 14)
 		m.tagTI.Width = max(cw-8, 14)
 		m.aliasForm.resize(cw)
+		m.ensureBrowseVisible(true)
 		return m, nil
 
 	case entriesMsg:
@@ -256,15 +260,10 @@ func (m *Model) deleteReset() {
 }
 
 func (m *Model) rebuildBrowse() {
+	previousCursor := m.browseCursor
 	filtered := filterEntries(m.allEntries, m.searchTI.Value(), m.tagTI.Value())
 	m.cmdRows = buildCmdRows(filtered)
-	if len(m.cmdRows) == 0 {
-		m.browseCursor = 0
-		return
-	}
-	if m.browseCursor >= len(m.cmdRows) {
-		m.browseCursor = len(m.cmdRows) - 1
-	}
+	m.reconcileBrowse(previousCursor)
 }
 
 func (m *Model) afterSave() (tea.Model, tea.Cmd) {
@@ -297,6 +296,8 @@ func (m *Model) afterSave() (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.detailEntry = e
+		m.selectedID = e.ID
+		m.restoreID = 0
 		m.form.blurAll()
 		if m.editFromBrowse {
 			m.editFromBrowse = false
@@ -404,7 +405,6 @@ func (m *Model) updateHome(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.errBanner = ""
 			m.cmdPhase = commandsBrowse
 			m.cmdFocus = commandsFocusList
-			m.browseCursor = 0
 			m.searchTI.SetValue("")
 			m.tagTI.SetValue("")
 			m.rebuildBrowse()
@@ -576,7 +576,7 @@ func (m *Model) updateBrowseKeys(km tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.form.prepareAdd()
 		return m, textinput.Blink
 	case strings.EqualFold(km.String(), "e"):
-		if len(m.cmdRows) == 0 {
+		if !m.hasBrowseSelection() {
 			return m, nil
 		}
 		m.editFromBrowse = true
@@ -585,7 +585,7 @@ func (m *Model) updateBrowseKeys(km tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.form.prepareEdit(m.detailEntry)
 		return m, textinput.Blink
 	case strings.EqualFold(km.String(), "d"):
-		if len(m.cmdRows) == 0 {
+		if !m.hasBrowseSelection() {
 			return m, nil
 		}
 		m.deleteFromBrowse = true
@@ -593,15 +593,23 @@ func (m *Model) updateBrowseKeys(km tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cmdPhase = commandsDeleteConfirm
 		return m, nil
 	case key.Matches(km, m.keys.Up):
-		if m.browseCursor > 0 {
-			m.browseCursor--
-		}
+		m.moveBrowseBy(-1)
 	case key.Matches(km, m.keys.Down):
-		if m.browseCursor < len(m.cmdRows)-1 {
-			m.browseCursor++
-		}
+		m.moveBrowseBy(1)
+	case key.Matches(km, m.keys.Home):
+		m.selectBrowseIndex(0)
+	case key.Matches(km, m.keys.End):
+		m.selectBrowseIndex(len(m.cmdRows) - 1)
+	case key.Matches(km, m.keys.PageUp):
+		m.moveBrowsePage(-1)
+	case key.Matches(km, m.keys.PageDown):
+		m.moveBrowsePage(1)
+	case km.String() == "[":
+		m.jumpBrowseGroup(-1)
+	case km.String() == "]":
+		m.jumpBrowseGroup(1)
 	case key.Matches(km, m.keys.Enter):
-		if len(m.cmdRows) == 0 {
+		if !m.hasBrowseSelection() {
 			return m, nil
 		}
 		m.detailEntry = m.cmdRows[m.browseCursor].Entry
