@@ -767,6 +767,6 @@ main() {
   echo "Homebrew users should install with: brew install Architeg/tap/gloss"
 }
 
-if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+if [[ "${BASH_SOURCE[0]:-$0}" == "$0" ]]; then
   main "$@"
 fi
