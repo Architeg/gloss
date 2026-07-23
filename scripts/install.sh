@@ -13,8 +13,93 @@ temporary_dir=""
 staged_executable=""
 staged_shell_file=""
 
+style_reset=""
+style_bold=""
+style_dim=""
+style_cyan=""
+style_green=""
+style_yellow=""
+style_red=""
+
+stdout_is_terminal() {
+  [[ -t 1 ]]
+}
+
+initialize_output_styles() {
+  style_reset=""
+  style_bold=""
+  style_dim=""
+  style_cyan=""
+  style_green=""
+  style_yellow=""
+  style_red=""
+
+  if [[ -n "${NO_COLOR+x}" || "${TERM:-}" == "dumb" ]] || ! stdout_is_terminal; then
+    return
+  fi
+
+  style_reset=$'\033[0m'
+  style_bold=$'\033[1m'
+  style_dim=$'\033[2m'
+  style_cyan=$'\033[36m'
+  style_green=$'\033[32m'
+  style_yellow=$'\033[33m'
+  style_red=$'\033[31m'
+}
+
+print_banner() {
+  printf '%b%bGloss installer%b\n' "$style_bold" "$style_cyan" "$style_reset"
+  printf '%b%b───────────────%b\n\n' "$style_bold" "$style_cyan" "$style_reset"
+}
+
+print_heading() {
+  printf '\n%b%b%s%b\n' "$style_bold" "$style_cyan" "$1" "$style_reset"
+}
+
+print_activity() {
+  printf '%b→%b %s\n' "$style_cyan" "$style_reset" "$1"
+}
+
+print_success() {
+  printf '%b✓ %s%b\n' "$style_green" "$1" "$style_reset"
+}
+
+print_warning() {
+  printf '%b! %s%b\n' "$style_yellow" "$1" "$style_reset"
+}
+
+print_error() {
+  printf '%b✗ %s%b\n' "$style_red" "$1" "$style_reset" >&2
+}
+
+print_note() {
+  printf '  %s\n' "$1"
+}
+
+print_label() {
+  printf '  %b%-8s%b  %s\n' "$style_dim" "$1" "$style_reset" "$2"
+}
+
+print_command() {
+  printf '  %b%s%b\n' "$style_bold" "$1" "$style_reset"
+}
+
+print_question() {
+  printf '%b?%b %s' "$style_cyan" "$style_reset" "$1"
+}
+
+print_next_steps() {
+  print_heading "Next step"
+  local command
+  for command in "$@"; do
+    print_command "$command"
+  done
+}
+
+initialize_output_styles
+
 fail() {
-  echo "gloss installer: $*" >&2
+  print_error "gloss installer: $*"
   return 1
 }
 
@@ -64,6 +149,16 @@ detect_platform() {
       ;;
   esac
   printf '%s %s gloss-%s-%s.zip gloss-%s-%s\n' "$os" "$arch" "$os" "$arch" "$os" "$arch"
+}
+
+display_platform() {
+  case "$1/$2" in
+    darwin/amd64) printf '%s\n' "macOS (Intel)" ;;
+    darwin/arm64) printf '%s\n' "macOS (Apple Silicon)" ;;
+    linux/amd64) printf '%s\n' "Linux (x86_64)" ;;
+    linux/arm64) printf '%s\n' "Linux (ARM64)" ;;
+    *) printf '%s/%s\n' "$1" "$2" ;;
+  esac
 }
 
 safe_test_release_root() {
@@ -601,7 +696,7 @@ confirm_path_update() {
     return 2
   fi
 
-  printf 'Add Gloss to PATH in %s? [Y/n] ' "$display_file"
+  print_question "Add this automatically? [Y/n] "
   local reply
   if ! IFS= read -r reply <&3; then
     exec 3<&-
@@ -619,52 +714,58 @@ print_manual_path_instructions() {
   local path_line="$1"
   local display_file="${2:-}"
   if [[ -n "$display_file" ]]; then
-    echo "Add this line to $display_file:"
+    print_note "Add to $display_file:"
   else
-    echo "Add this line to your zsh or bash startup file:"
+    print_note "Add to your zsh or bash startup file:"
   fi
-  printf '  %s\n' "$path_line"
-  echo "Then restart your terminal."
+  print_command "$path_line"
 }
 
 configure_path() {
   local directory="$1"
   if path_contains_directory "$directory"; then
-    echo "Run: gloss version"
+    print_next_steps "gloss version"
     return 0
   fi
 
   local path_line
   path_line="$(path_export_line "$directory")"
-  echo "$directory is not in PATH."
+  local display_directory
+  display_directory="$(display_shell_file "$directory")"
+  print_heading "PATH setup"
+  print_note "$display_directory is not currently in PATH."
 
   local shell_file
   if ! shell_file="$(shell_startup_file)"; then
-    echo "Could not determine a supported zsh or bash startup file."
+    print_warning "Could not determine a supported zsh or bash startup file."
     print_manual_path_instructions "$path_line"
+    print_next_steps "Restart your terminal" "gloss version"
     return 0
   fi
   local display_file
   display_file="$(display_shell_file "$shell_file")"
 
   if [[ -L "$shell_file" ]]; then
-    echo "Warning: refusing to modify symlinked shell startup file $display_file."
+    print_warning "Refusing to modify symlinked shell startup file $display_file."
     print_manual_path_instructions "$path_line" "$display_file"
+    print_next_steps "source $display_file" "gloss version"
     return 0
   fi
   if [[ -e "$shell_file" && ! -f "$shell_file" ]]; then
-    echo "Warning: refusing to modify nonregular shell startup file $display_file."
+    print_warning "Refusing to modify nonregular shell startup file $display_file."
     print_manual_path_instructions "$path_line" "$display_file"
+    print_next_steps "source $display_file" "gloss version"
     return 0
   fi
   if path_line_exists "$shell_file" "$directory" "$path_line"; then
-    echo "Shell configuration already contains this PATH entry in $display_file."
-    printf 'Run: source %s\n' "$display_file"
+    print_success "PATH is already configured in $display_file"
+    print_next_steps "source $display_file" "gloss version"
     return 0
   fi
 
-  echo "Proposed PATH line:"
-  printf '  %s\n' "$path_line"
+  printf '\n'
+  print_manual_path_instructions "$path_line" "$display_file"
+  printf '\n'
   local confirmation
   if confirm_path_update "$display_file"; then
     confirmation=0
@@ -674,29 +775,31 @@ configure_path() {
   case "$confirmation" in
     0)
       if append_path_line_atomically "$shell_file" "$path_line"; then
-        echo "Gloss PATH entry added to $display_file."
-        printf 'Run: source %s\n' "$display_file"
+        print_success "PATH updated"
+        print_next_steps "source $display_file" "gloss version"
       else
-        echo "Warning: could not safely update $display_file."
-        print_manual_path_instructions "$path_line" "$display_file"
+        print_warning "Could not safely update $display_file."
+        print_next_steps "source $display_file" "gloss version"
       fi
       ;;
     1)
-      echo "Skipped PATH update."
-      print_manual_path_instructions "$path_line" "$display_file"
+      print_warning "PATH was not changed."
+      print_next_steps "source $display_file" "gloss version"
       ;;
     2)
-      echo "No interactive terminal is available; shell configuration was not changed."
-      print_manual_path_instructions "$path_line" "$display_file"
+      print_warning "No interactive terminal is available; PATH was not changed."
+      print_next_steps "source $display_file" "gloss version"
       ;;
     *)
-      echo "Unrecognized response; PATH configuration was not changed."
-      print_manual_path_instructions "$path_line" "$display_file"
+      print_warning "Unrecognized response; PATH was not changed."
+      print_next_steps "source $display_file" "gloss version"
       ;;
   esac
 }
 
 main() {
+  print_banner
+
   for command in curl unzip zipinfo awk mktemp; do
     if ! command -v "$command" >/dev/null 2>&1; then
       fail "required command is unavailable: $command"
@@ -738,13 +841,16 @@ main() {
   local checksums="$temporary_dir/checksums.txt"
   local archive="$temporary_dir/$asset"
   local release_url="$root/releases/download/$tag"
-  echo "Downloading Gloss $tag for $os/$arch..."
+  local platform_label
+  platform_label="$(display_platform "$os" "$arch")"
+  print_activity "Downloading Gloss ${tag#v} for $platform_label…"
   download_bounded "$release_url/checksums.txt" "$checksums" "$MAX_CHECKSUM_BYTES"
   download_bounded "$release_url/$asset" "$archive" "$MAX_ARCHIVE_BYTES"
 
   # The archive is not inspected or extracted until its exact checksum passes.
   verify_checksum "$checksums" "$archive" "$asset"
   inspect_archive "$archive" "$executable"
+  print_success "Download verified"
 
   local extract_dir="$temporary_dir/extracted"
   mkdir -m 700 "$extract_dir"
@@ -760,11 +866,12 @@ main() {
   target="$(validate_destination "$install_dir")" || return 1
   install_atomically "$extracted" "$target"
 
-  echo
-  echo "Gloss ${tag#v} installed."
-  echo "Destination: $target"
+  print_success "Gloss ${tag#v} installed"
+  printf '\n'
+  print_label "Location" "$target"
   configure_path "$(dirname -- "$target")" || true
-  echo "Homebrew users should install with: brew install Architeg/tap/gloss"
+  print_heading "Homebrew alternative"
+  print_command "brew install Architeg/tap/gloss"
 }
 
 if [[ "${BASH_SOURCE[0]:-$0}" == "$0" ]]; then

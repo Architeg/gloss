@@ -19,6 +19,18 @@ func newInstallerTestCommand(t *testing.T, detached bool, name string, args ...s
 	if detached {
 		timeout = detachedInstallerSubprocessTimeout
 	}
+	return newInstallerTestCommandWithTimeout(t, detached, timeout, name, args...)
+}
+
+func newInstallerTestCommandWithTimeout(
+	t *testing.T,
+	detached bool,
+	timeout time.Duration,
+	name string,
+	args ...string,
+) *exec.Cmd {
+	t.Helper()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	t.Cleanup(cancel)
 

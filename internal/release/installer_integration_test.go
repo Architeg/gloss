@@ -42,20 +42,24 @@ func TestInstallerEndToEndSuccess(t *testing.T) {
 			if result.err != nil {
 				t.Fatalf("installer failed: %v\n%s", result.err, result.output)
 			}
-			if !strings.Contains(result.output, "Gloss 0.1.1 installed.") ||
-				!strings.Contains(result.output, "Destination: "+result.target) {
+			if !strings.Contains(result.output, "✓ Gloss 0.1.1 installed") ||
+				!strings.Contains(result.output, "Location  "+result.target) ||
+				!strings.Contains(result.output, "Gloss installer\n───────────────") ||
+				!strings.Contains(result.output, "→ Downloading Gloss 0.1.1 for macOS (Intel)…") ||
+				!strings.Contains(result.output, "✓ Download verified") ||
+				!strings.Contains(result.output, "Homebrew alternative\n  brew install Architeg/tap/gloss") ||
+				strings.Contains(result.output, "\x1b[") {
 				t.Fatalf("success output = %q", result.output)
 			}
 			if tt.pathPresent {
-				if !strings.Contains(result.output, "Run: gloss version") {
+				if !strings.Contains(result.output, "Next step\n  gloss version") {
 					t.Fatalf("PATH-present output = %q", result.output)
 				}
 			} else {
-				manual := "No interactive terminal is available; shell configuration was not changed.\n" +
-					"Add this line to ~/.zshrc:\n" +
-					"  export PATH='" + result.install + "':$PATH\n" +
-					"Then restart your terminal."
-				if !strings.Contains(result.output, "is not in PATH") ||
+				manual := "Add to ~/.zshrc:\n" +
+					"  export PATH='" + result.install + "':$PATH"
+				if !strings.Contains(result.output, "is not currently in PATH") ||
+					!strings.Contains(result.output, "No interactive terminal is available; PATH was not changed") ||
 					!strings.Contains(result.output, manual) {
 					t.Fatalf("PATH-absent output = %q; want exact manual block %q", result.output, manual)
 				}
@@ -362,7 +366,7 @@ func TestInstallerFailuresPreserveExistingTarget(t *testing.T) {
 			if version == "" {
 				version = "v0.1.1"
 			}
-			result := runInstallerIntegrationWithOptions(t, server.URL, version, fixture, false, []byte("original"), tt.extraEnv, tt.unameS, tt.unameM, tt.installDir)
+			result := runInstallerIntegrationWithOptions(t, server.URL, version, fixture, false, []byte("original"), tt.extraEnv, tt.unameS, tt.unameM, tt.installDir, false)
 			if result.err == nil {
 				t.Fatalf("installer unexpectedly succeeded:\n%s", result.output)
 			}
@@ -566,7 +570,7 @@ func runInstallerIntegration(
 	original []byte,
 ) installerRunResult {
 	t.Helper()
-	return runInstallerIntegrationWithOptions(t, releaseRoot, version, fixture, pathPresent, original, nil, "", "", nil)
+	return runInstallerIntegrationWithOptions(t, releaseRoot, version, fixture, pathPresent, original, nil, "", "", nil, false)
 }
 
 func runInstallerIntegrationWithOptions(
@@ -578,6 +582,7 @@ func runInstallerIntegrationWithOptions(
 	extraEnv []string,
 	unameS, unameM string,
 	installDir func(*testing.T, string) string,
+	scriptFromStdin bool,
 ) installerRunResult {
 	t.Helper()
 	repositoryRoot, err := filepath.Abs(filepath.Join("..", ".."))
@@ -622,7 +627,16 @@ func runInstallerIntegrationWithOptions(
 	if unameM == "" {
 		unameM = "x86_64"
 	}
-	command := newInstallerTestCommand(t, true, "bash", filepath.Join(repositoryRoot, "scripts", "install.sh"))
+	scriptPath := filepath.Join(repositoryRoot, "scripts", "install.sh")
+	command := newInstallerTestCommand(t, true, "bash", scriptPath)
+	if scriptFromStdin {
+		script, readErr := os.ReadFile(scriptPath)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		command = newInstallerTestCommandWithTimeout(t, true, installerSubprocessTimeout, "bash")
+		command.Stdin = bytes.NewReader(script)
+	}
 	command.Env = mergeInstallerEnvironment(os.Environ(), append([]string{
 		"GLOSS_INSTALL_TESTING=1",
 		"GLOSS_RELEASE_ROOT=" + releaseRoot,

@@ -37,7 +37,7 @@
 
 Gloss keeps reusable shell commands organized, searchable, and ready when you need them.
 
-I built it because I kept re-searching the same commands and spreading aliases across shell history, notes, and config files. Gloss gives those commands a small local home: descriptions, tags, TUI search, config scanning, and safe managed alias sync.
+I built it because I kept searching for the same commands while useful snippets and aliases were scattered across shell history, notes, and config files. Gloss brings them together in one local tool, with descriptions, tags, fast TUI search, config scanning, and safe managed alias sync.
 
 <p align="center">
   <img src="assets/gloss-logo-dark-h2-home-screen.png" alt="Gloss logo" width="840"/>
@@ -96,25 +96,6 @@ VERSION=v0.1.1 bash /tmp/gloss-install.sh
 
 ```bash
 brew install Architeg/tap/gloss
-```
-
-If Homebrew behaves unexpectedly, check this:
-
-```bash
-echo "$HOMEBREW_NO_INSTALL_FROM_API"
-```
-
-If it returns `1`, unset it and retry:
-
-```bash
-unset HOMEBREW_NO_INSTALL_FROM_API
-brew install Architeg/tap/gloss
-```
-
-You can also skip Homebrew auto-update during install:
-
-```bash
-HOMEBREW_NO_AUTO_UPDATE=1 brew install Architeg/tap/gloss
 ```
 
 ### Option 3 - Manual install
@@ -398,7 +379,7 @@ sudo rm -f /usr/local/bin/gloss
 If installed with Homebrew:
 
 ```bash
-brew uninstall gloss
+brew uninstall Architeg/tap/gloss
 ```
 
 Optional: remove local data and config:
@@ -415,7 +396,7 @@ Optional: remove the managed alias block from `~/.zshrc` or `~/.bashrc`:
 # <<< gloss aliases <<<
 ```
 
-If you manually added Gloss to your `PATH`, remove the corresponding line from your shell config:
+If you added Gloss to your `PATH`, remove the corresponding line from your shell config:
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"

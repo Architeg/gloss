@@ -24,7 +24,7 @@ func TestInstallerPATHPresentDoesNotPromptOrEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(output, "Add Gloss to PATH") {
+	if strings.Contains(output, "Add this automatically") {
 		t.Fatalf("PATH-present run prompted: %q", output)
 	}
 	if _, err := os.Lstat(filepath.Join(home, ".zshrc")); !os.IsNotExist(err) {
@@ -42,7 +42,7 @@ func TestInstallerPATHMembershipUsesExactEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(output, "Add Gloss to PATH") {
+	if !strings.Contains(output, "? Add this automatically? [Y/n]") {
 		t.Fatalf("substring PATH entry was treated as exact: %q", output)
 	}
 }
@@ -78,8 +78,9 @@ func TestInstallerAcceptedPATHUpdates(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(output, "Add Gloss to PATH in ~/"+tt.rc+"? [Y/n]") ||
-				!strings.Contains(output, "Run: source ~/"+tt.rc) {
+			if !strings.Contains(output, "? Add this automatically? [Y/n]") ||
+				!strings.Contains(output, "✓ PATH updated") ||
+				!strings.Contains(output, "source ~/"+tt.rc) {
 				t.Fatalf("accepted output = %q", output)
 			}
 			data, err := os.ReadFile(rc)
@@ -115,7 +116,7 @@ func TestInstallerDeclinedPATHUpdates(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(output, "Skipped PATH update.") {
+			if !strings.Contains(output, "! PATH was not changed.") {
 				t.Fatalf("decline output = %q", output)
 			}
 			assertFileBytes(t, rc, original)
@@ -133,7 +134,7 @@ func TestInstallerReadsConfirmationFromTTYNotStdin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(output, "Gloss PATH entry added") {
+	if !strings.Contains(output, "✓ PATH updated") {
 		t.Fatalf("TTY confirmation was not used: %q", output)
 	}
 	if _, err := os.Stat(filepath.Join(home, ".zshrc")); err != nil {
@@ -148,7 +149,7 @@ func TestInstallerNoninteractiveAndUnknownShellFallback(t *testing.T) {
 		want     string
 		detached bool
 	}{
-		{name: "no terminal", shell: "/bin/zsh", want: "No interactive terminal is available", detached: true},
+		{name: "no terminal", shell: "/bin/zsh", want: "No interactive terminal is available; PATH was not changed", detached: true},
 		{name: "unknown shell", shell: "/bin/fish", want: "Could not determine a supported zsh or bash startup file"},
 		{name: "missing shell", want: "Could not determine a supported zsh or bash startup file"},
 	}
@@ -167,9 +168,8 @@ func TestInstallerNoninteractiveAndUnknownShellFallback(t *testing.T) {
 				t.Fatalf("fallback output = %q", output)
 			}
 			if tt.detached {
-				manual := "Add this line to ~/.zshrc:\n" +
-					"  " + `export PATH="$HOME/.local/bin:$PATH"` + "\n" +
-					"Then restart your terminal."
+				manual := "Add to ~/.zshrc:\n" +
+					"  " + `export PATH="$HOME/.local/bin:$PATH"`
 				if !strings.Contains(output, manual) {
 					t.Fatalf("manual PATH instructions = %q; want exact block %q", output, manual)
 				}
@@ -207,7 +207,7 @@ func TestInstallerCreatesMissingShellFileSafelyAndIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(output, "already contains this PATH entry") {
+	if !strings.Contains(output, "PATH is already configured") {
 		t.Fatalf("repeat output = %q", output)
 	}
 	assertFileBytes(t, rc, first)
@@ -235,7 +235,7 @@ func TestInstallerRecognizesEquivalentExistingPATHLines(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(output, "already contains this PATH entry") {
+			if !strings.Contains(output, "PATH is already configured") {
 				t.Fatalf("equivalent line was not recognized: %q", output)
 			}
 			data, err := os.ReadFile(rc)
@@ -299,7 +299,7 @@ func TestInstallerRejectsUnsafeShellTargetsWithoutFailing(t *testing.T) {
 			home: home, shell: "/bin/zsh", directory: filepath.Join(home, "bin"),
 			path: "/usr/bin:/bin", reply: stringPointer("Y\n"),
 		})
-		if err != nil || !strings.Contains(output, "refusing to modify symlinked") {
+		if err != nil || !strings.Contains(output, "Refusing to modify symlinked") {
 			t.Fatalf("symlink result = %v, %q", err, output)
 		}
 		assertFileBytes(t, target, original)
@@ -315,7 +315,7 @@ func TestInstallerRejectsUnsafeShellTargetsWithoutFailing(t *testing.T) {
 			home: home, shell: "/bin/bash", directory: filepath.Join(home, "bin"),
 			path: "/usr/bin:/bin", reply: stringPointer("Y\n"),
 		})
-		if err != nil || !strings.Contains(output, "refusing to modify nonregular") {
+		if err != nil || !strings.Contains(output, "Refusing to modify nonregular") {
 			t.Fatalf("nonregular result = %v, %q", err, output)
 		}
 		info, statErr := os.Stat(rc)
@@ -403,9 +403,9 @@ func TestInstallerCompletesWhenShellEditIsUnsafe(t *testing.T) {
 	result := runInstallerIntegrationWithOptions(
 		t, server.URL, "v0.1.1", fixture, false, nil,
 		[]string{"HOME=" + home, "SHELL=/bin/zsh", "GLOSS_TEST_TTY=" + reply},
-		"", "", nil,
+		"", "", nil, false,
 	)
-	if result.err != nil || !strings.Contains(result.output, "refusing to modify symlinked") {
+	if result.err != nil || !strings.Contains(result.output, "Refusing to modify symlinked") {
 		t.Fatalf("unsafe shell edit changed install result: %v\n%s", result.err, result.output)
 	}
 	if info, err := os.Stat(result.target); err != nil || info.Mode().Perm() != 0o755 {
