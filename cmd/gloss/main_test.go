@@ -24,6 +24,8 @@ Terminal (no TUI):
   gloss alias add              add managed alias (stored only; sync separately)
   gloss alias sync             write managed block to shell file (backup if needed)
   gloss alias delete <name>    remove a managed alias
+  gloss update                 check for a stable update
+  gloss update --install       securely install a stable update
 
   gloss help                   show this help
 
@@ -45,6 +47,7 @@ func TestEarlyDispatchStatelessOutput(t *testing.T) {
 		{name: "help", args: []string{"help"}, wantOut: expectedCLIHelp},
 		{name: "long help flag", args: []string{"--help"}, wantOut: expectedCLIHelp},
 		{name: "short help flag", args: []string{"-h"}, wantOut: expectedCLIHelp},
+		{name: "update help", args: []string{"update", "--help"}, wantOut: "Usage:\n  gloss update             check for a stable update\n  gloss update --install   verify and install a stable update\n\nAutomatic update checks never install updates.\n"},
 		{name: "unknown", args: []string{"unknown"}, wantErr: "gloss: unknown command \"unknown\" (try gloss help)\n", wantCode: 1},
 		{name: "usage", args: []string{"scan", "extra"}, wantErr: "gloss: usage: gloss scan\n", wantCode: 1},
 	}
@@ -76,7 +79,7 @@ func TestEarlyDispatchLeavesStatefulInvocationsUnhandled(t *testing.T) {
 }
 
 func TestStatelessSubprocessDoesNotInitializeApplication(t *testing.T) {
-	for _, args := range [][]string{{"version"}, {"--version"}, {"-v"}, {"help"}, {"--help"}, {"-h"}, {"unknown"}, {"scan", "extra"}} {
+	for _, args := range [][]string{{"version"}, {"--version"}, {"-v"}, {"help"}, {"--help"}, {"-h"}, {"update", "--help"}, {"unknown"}, {"scan", "extra"}} {
 		t.Run(strings.Join(args, "_"), func(t *testing.T) {
 			home := filepath.Join(t.TempDir(), "home")
 			result := runGlossSubprocess(t, home, args...)

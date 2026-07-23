@@ -4,7 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoadCreatesPrivateConfigPaths(t *testing.T) {
@@ -13,11 +15,70 @@ func TestLoadCreatesPrivateConfigPaths(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("SHELL", "/bin/zsh")
 
-	if _, err := Load(); err != nil {
+	cfg, err := Load()
+	if err != nil {
 		t.Fatal(err)
+	}
+	if cfg.CheckForUpdates || cfg.UpdateCheckInterval.Duration() != 24*time.Hour {
+		t.Fatalf("update defaults = enabled %v interval %s", cfg.CheckForUpdates, cfg.UpdateCheckInterval.Duration())
+	}
+	data, err := os.ReadFile(filepath.Join(home, relConfigDir, relConfigFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if !strings.Contains(text, "check_for_updates: false") || !strings.Contains(text, "update_check_interval: 24h") {
+		t.Fatalf("generated config lacks update defaults:\n%s", text)
 	}
 	assertMode(t, filepath.Join(home, relConfigDir), 0o700)
 	assertMode(t, filepath.Join(home, relConfigDir, relConfigFile), 0o600)
+}
+
+func TestLoadMergesLegacyAndExplicitUpdateSettings(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   string
+		enabled  bool
+		interval time.Duration
+		wantErr  bool
+	}{
+		{name: "legacy", config: "use_color: true\n", interval: 24 * time.Hour},
+		{name: "explicit", config: "check_for_updates: true\nupdate_check_interval: 48h\n", enabled: true, interval: 48 * time.Hour},
+		{name: "invalid", config: "update_check_interval: never\n", wantErr: true},
+		{name: "nonpositive", config: "update_check_interval: 0s\n", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("SHELL", "/bin/zsh")
+			dir := filepath.Join(home, relConfigDir)
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(dir, relConfigFile)
+			if err := os.WriteFile(path, []byte(tt.config), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := Load()
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("Load succeeded")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.CheckForUpdates != tt.enabled || cfg.UpdateCheckInterval.Duration() != tt.interval {
+				t.Fatalf("settings = enabled %v interval %s", cfg.CheckForUpdates, cfg.UpdateCheckInterval.Duration())
+			}
+			unchanged, err := os.ReadFile(path)
+			if err != nil || string(unchanged) != tt.config {
+				t.Fatalf("existing config was rewritten: %q, %v", unchanged, err)
+			}
+		})
+	}
 }
 
 func TestLoadTightensExistingConfigPaths(t *testing.T) {

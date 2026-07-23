@@ -86,6 +86,10 @@ func (m *Model) homeView(width int) string {
 		tw = contentWidth(m.width)
 	}
 	b.WriteString(m.renderHomeBanner(tw))
+	if m.updateNotice != "" {
+		b.WriteString("\n\n")
+		b.WriteString(m.styles.BannerTagline.Width(width).Render(m.updateNotice))
+	}
 	b.WriteString("\n\n\n")
 
 	for i, item := range HomeMenu {

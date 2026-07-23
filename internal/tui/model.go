@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -13,13 +15,23 @@ import (
 	"github.com/Architeg/gloss/internal/clipboard"
 	"github.com/Architeg/gloss/internal/model"
 	"github.com/Architeg/gloss/internal/storage"
+	"github.com/Architeg/gloss/internal/update"
 )
+
+type updateChecker interface {
+	Check(context.Context, string) (update.CheckResult, error)
+}
 
 // Options carries dependencies created during app bootstrap.
 type Options struct {
-	Config    *model.Config
-	Repo      *storage.EntryRepo
-	Clipboard clipboard.Writer
+	Config              *model.Config
+	Repo                *storage.EntryRepo
+	Clipboard           clipboard.Writer
+	UpdateChecker       updateChecker
+	UpdateVersion       string
+	UpdateState         update.StateStore
+	InspectUpdateLayout func() (update.Layout, error)
+	UpdateTimeout       time.Duration
 }
 
 // Model is the root Bubble Tea model for Gloss.
@@ -40,6 +52,15 @@ type Model struct {
 
 	allEntries []model.Entry
 	errBanner  string
+
+	updateChecker       updateChecker
+	updateVersion       string
+	updateState         update.StateStore
+	inspectUpdateLayout func() (update.Layout, error)
+	updateTimeout       time.Duration
+	updateCheckStarted  bool
+	updateCheckFinished bool
+	updateNotice        string
 
 	cmdPhase          commandsPhase
 	cmdFocus          commandsFocus
@@ -95,18 +116,23 @@ func New(opts Options) tea.Model {
 	tag.Blur()
 
 	m := &Model{
-		styles:        newStyles(),
-		keys:          newBindings(),
-		screen:        ScreenHome,
-		config:        opts.Config,
-		repo:          opts.Repo,
-		clip:          opts.Clipboard,
-		searchTI:      search,
-		tagTI:         tag,
-		form:          newFormState(cw),
-		aliasForm:     newAliasFormState(cw),
-		bulkTagForm:   newBulkTagFormState(cw),
-		multiSelected: make(map[int64]struct{}),
+		styles:              newStyles(),
+		keys:                newBindings(),
+		screen:              ScreenHome,
+		config:              opts.Config,
+		repo:                opts.Repo,
+		clip:                opts.Clipboard,
+		searchTI:            search,
+		tagTI:               tag,
+		form:                newFormState(cw),
+		aliasForm:           newAliasFormState(cw),
+		bulkTagForm:         newBulkTagFormState(cw),
+		multiSelected:       make(map[int64]struct{}),
+		updateChecker:       opts.UpdateChecker,
+		updateVersion:       opts.UpdateVersion,
+		updateState:         opts.UpdateState,
+		inspectUpdateLayout: opts.InspectUpdateLayout,
+		updateTimeout:       opts.UpdateTimeout,
 	}
 	if m.clip == nil {
 		m.clip = clipboard.System{}
@@ -119,7 +145,7 @@ func New(opts Options) tea.Model {
 
 // Init implements tea.Model.
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(textinput.Blink, loadEntriesCmd(m.repo))
+	return tea.Batch(textinput.Blink, loadEntriesCmd(m.repo), m.automaticUpdateCommand())
 }
 
 // Update implements tea.Model.
@@ -140,6 +166,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case commandStatusExpiredMsg:
 		m.expireCommandStatus(msg)
+		return m, nil
+
+	case automaticUpdateMsg:
+		m.updateCheckFinished = true
+		if msg.err != nil || msg.skipped || !msg.result.UpdateAvailable {
+			return m, nil
+		}
+		if msg.homebrew {
+			m.updateNotice = "Gloss " + msg.result.LatestVersion + " is available — " + update.HomebrewUpgradeCommand
+		} else {
+			m.updateNotice = "Gloss " + msg.result.LatestVersion + " is available — run gloss update --install"
+		}
 		return m, nil
 
 	case entriesMsg:

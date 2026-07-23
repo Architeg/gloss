@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -75,6 +76,12 @@ func Load() (*model.Config, error) {
 	if _, ok := raw["use_color"]; !ok {
 		cfg.UseColor = def.UseColor
 	}
+	if _, ok := raw["check_for_updates"]; !ok {
+		cfg.CheckForUpdates = def.CheckForUpdates
+	}
+	if _, ok := raw["update_check_interval"]; !ok {
+		cfg.UpdateCheckInterval = def.UpdateCheckInterval
+	}
 
 	return &cfg, nil
 }
@@ -121,10 +128,12 @@ func defaults(home string) *model.Config {
 
 	store := filepath.Join(home, relConfigDir)
 	return &model.Config{
-		ShellFile:   shellFile,
-		StoragePath: store,
-		ScanPaths:   scanPaths,
-		UseColor:    true,
+		ShellFile:           shellFile,
+		StoragePath:         store,
+		ScanPaths:           scanPaths,
+		UseColor:            true,
+		CheckForUpdates:     false,
+		UpdateCheckInterval: model.UpdateInterval(24 * time.Hour),
 	}
 }
 

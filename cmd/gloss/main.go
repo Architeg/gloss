@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
+	"time"
 	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,12 +19,19 @@ import (
 	"github.com/Architeg/gloss/internal/scan"
 	"github.com/Architeg/gloss/internal/storage"
 	"github.com/Architeg/gloss/internal/tui"
+	"github.com/Architeg/gloss/internal/update"
 )
 
 var (
 	Version = "0.1.0"
 	Commit  = "dev"
 	Date    = "unknown"
+
+	newUpdateClient = func() *update.Client {
+		return update.NewClient(&http.Client{Timeout: 30 * time.Second})
+	}
+	inspectUpdateExecutable = update.InspectRunningExecutable
+	installVerifiedUpdate   = update.InstallVerified
 )
 
 func main() {
@@ -105,7 +114,15 @@ func main() {
 	}
 
 	p := tea.NewProgram(
-		tui.New(tui.Options{Config: cfg, Repo: repo}),
+		tui.New(tui.Options{
+			Config:              cfg,
+			Repo:                repo,
+			UpdateChecker:       update.NewClient(&http.Client{Timeout: 10 * time.Second}),
+			UpdateVersion:       Version,
+			UpdateState:         update.StateStore{Path: filepath.Join(cfg.StoragePath, "update-state.json")},
+			InspectUpdateLayout: inspectUpdateExecutable,
+			UpdateTimeout:       10 * time.Second,
+		}),
 		tea.WithAltScreen(),
 	)
 	if _, err := p.Run(); err != nil {
@@ -115,10 +132,11 @@ func main() {
 }
 
 type invocation struct {
-	name        string
-	tag         string
-	command     string
-	aliasAction string
+	name          string
+	tag           string
+	command       string
+	aliasAction   string
+	updateInstall bool
 }
 
 func earlyDispatch(args []string, stdout, stderr io.Writer) (invocation, bool, int) {
@@ -134,6 +152,15 @@ func earlyDispatch(args []string, stdout, stderr io.Writer) (invocation, bool, i
 	case "help":
 		printCLIHelp(stdout)
 		return inv, true, 0
+	case "update-help":
+		printUpdateHelp(stdout)
+		return inv, true, 0
+	case "update":
+		if err := runUpdateCLI(context.Background(), stdout, inv.updateInstall, newUpdateClient(), inspectUpdateExecutable, installVerifiedUpdate); err != nil {
+			fmt.Fprintf(stderr, "gloss: update: %v\n", err)
+			return inv, true, 1
+		}
+		return inv, true, 0
 	default:
 		return inv, false, 0
 	}
@@ -148,6 +175,17 @@ func parseInvocation(args []string) (invocation, error) {
 		return invocation{name: "version"}, nil
 	case "help", "-h", "--help":
 		return invocation{name: "help"}, nil
+	case "update":
+		switch {
+		case len(args) == 1:
+			return invocation{name: "update"}, nil
+		case len(args) == 2 && args[1] == "--install":
+			return invocation{name: "update", updateInstall: true}, nil
+		case len(args) == 2 && (args[1] == "--help" || args[1] == "-h"):
+			return invocation{name: "update-help"}, nil
+		default:
+			return invocation{}, fmt.Errorf("gloss: usage: gloss update [--install]")
+		}
 	case "scan":
 		if len(args) > 1 {
 			return invocation{}, fmt.Errorf("gloss: usage: gloss scan")
@@ -208,11 +246,21 @@ Terminal (no TUI):
   gloss alias add              add managed alias (stored only; sync separately)
   gloss alias sync             write managed block to shell file (backup if needed)
   gloss alias delete <name>    remove a managed alias
+  gloss update                 check for a stable update
+  gloss update --install       securely install a stable update
 
   gloss help                   show this help
 
 Launch TUI:
   gloss`)
+}
+
+func printUpdateHelp(w io.Writer) {
+	fmt.Fprintln(w, `Usage:
+  gloss update             check for a stable update
+  gloss update --install   verify and install a stable update
+
+Automatic update checks never install updates.`)
 }
 
 func parseListArgs(args []string) (string, error) {
