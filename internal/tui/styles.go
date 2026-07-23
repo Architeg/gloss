@@ -1,6 +1,10 @@
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 const maxBodyWidth = 76
 
@@ -183,6 +187,13 @@ func newStyles() Styles {
 		FooterBar: lipgloss.NewStyle().
 			Foreground(lipgloss.AdaptiveColor{Light: "#c8c8c8", Dark: "#50555d"}),
 	}
+}
+
+// normalizeFocusedTrueColor corrects termenv v0.16's one-channel flooring of
+// #454064 so true-color terminals receive the requested RGB 69,64,100. Other
+// color profiles do not contain this sequence and pass through unchanged.
+func normalizeFocusedTrueColor(rendered string) string {
+	return strings.ReplaceAll(rendered, "48;2;68;64;100", "48;2;69;64;100")
 }
 
 func contentWidth(termWidth int) int {

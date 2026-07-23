@@ -37,17 +37,23 @@ func (m *Model) aliasMenuView(width int) string {
 	b.WriteString("\n\n")
 
 	for i, item := range aliasMenuHome {
+		focused := i == m.aliasMenuCursor
 		gutter := lipgloss.NewStyle().Width(2).Align(lipgloss.Left).Render("")
-		if i == m.aliasMenuCursor {
-			gutter = lipgloss.NewStyle().Width(2).Align(lipgloss.Left).Render(m.styles.SelCaret.Render("›"))
+		if focused {
+			gutter = m.styles.FocusMarker.Width(2).Align(lipgloss.Left).Render("›")
 		}
 		labelSt := m.styles.Item.Width(22).Align(lipgloss.Left)
 		descSt := m.styles.HomeDesc
-		if i == m.aliasMenuCursor {
-			labelSt = m.styles.Selected.Width(22).Align(lipgloss.Left)
-			descSt = m.styles.HomeSelDesc
+		gap := "  "
+		if focused {
+			labelSt = m.styles.CmdSelected.Width(22).Align(lipgloss.Left)
+			descSt = m.styles.DescSelected
+			gap = m.styles.FocusedRow.Render(gap)
 		}
-		line := lipgloss.JoinHorizontal(lipgloss.Top, gutter, labelSt.Render(item.title), "  ", descSt.Render(item.desc))
+		line := lipgloss.JoinHorizontal(lipgloss.Top, gutter, labelSt.Render(item.title), gap, descSt.Render(item.desc))
+		if focused {
+			line = normalizeFocusedTrueColor(line)
+		}
 		b.WriteString(lipgloss.NewStyle().Width(width).Render(line))
 		if i < len(aliasMenuHome)-1 {
 			b.WriteString("\n")
@@ -136,7 +142,11 @@ func (m *Model) aliasListView(width int) string {
 			}
 			parts = append(parts, gapCell, targetSt.Width(targetW).Render(truncateScanTail(e.Target, targetW)))
 		}
-		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, parts...))
+		line := lipgloss.JoinHorizontal(lipgloss.Top, parts...)
+		if focused {
+			line = normalizeFocusedTrueColor(line)
+		}
+		b.WriteString(line)
 		if i < len(rows)-1 {
 			b.WriteString("\n\n")
 		}
