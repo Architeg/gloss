@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -51,8 +50,21 @@ func TestInstallerEndToEndSuccess(t *testing.T) {
 				if !strings.Contains(result.output, "Run: gloss version") {
 					t.Fatalf("PATH-present output = %q", result.output)
 				}
-			} else if !strings.Contains(result.output, "is not in PATH") {
-				t.Fatalf("PATH-absent output = %q", result.output)
+			} else {
+				manual := "No interactive terminal is available; shell configuration was not changed.\n" +
+					"Add this line to ~/.zshrc:\n" +
+					"  export PATH='" + result.install + "':$PATH\n" +
+					"Then restart your terminal."
+				if !strings.Contains(result.output, "is not in PATH") ||
+					!strings.Contains(result.output, manual) {
+					t.Fatalf("PATH-absent output = %q; want exact manual block %q", result.output, manual)
+				}
+				for _, rc := range []string{".zshrc", ".bashrc"} {
+					path := filepath.Join(result.root, "home", rc)
+					if _, err := os.Lstat(path); !os.IsNotExist(err) {
+						t.Fatalf("noninteractive install changed %s: %v", path, err)
+					}
+				}
 			}
 			info, err := os.Lstat(result.target)
 			if err != nil {
@@ -61,7 +73,7 @@ func TestInstallerEndToEndSuccess(t *testing.T) {
 			if !info.Mode().IsRegular() || info.Mode().Perm() != 0o755 {
 				t.Fatalf("installed mode = %v", info.Mode())
 			}
-			command := exec.Command(result.target, "version")
+			command := newInstallerTestCommand(t, false, result.target, "version")
 			output, err := command.CombinedOutput()
 			if err != nil || strings.TrimSpace(string(output)) != "gloss 0.1.1" {
 				t.Fatalf("installed version = %q, %v", output, err)
@@ -443,7 +455,7 @@ func TestInstallerStagingFailurePreservesTarget(t *testing.T) {
 	if err := os.WriteFile(target, original, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	command := exec.Command("bash", "-c", `
+	command := newInstallerTestCommand(t, false, "bash", "-c", `
 source "$INSTALL_SCRIPT"
 temporary_dir="$TEST_DIR"
 trap cleanup EXIT
@@ -501,7 +513,7 @@ func TestInstallerDetectsTargetReplacementRace(t *testing.T) {
 	if err := os.Mkdir(temporary, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	command := exec.Command("bash", "-c", `
+	command := newInstallerTestCommand(t, false, "bash", "-c", `
 source "$INSTALL_SCRIPT"
 temporary_dir="$TEST_DIR"
 trap cleanup EXIT
@@ -610,7 +622,7 @@ func runInstallerIntegrationWithOptions(
 	if unameM == "" {
 		unameM = "x86_64"
 	}
-	command := exec.Command("bash", filepath.Join(repositoryRoot, "scripts", "install.sh"))
+	command := newInstallerTestCommand(t, true, "bash", filepath.Join(repositoryRoot, "scripts", "install.sh"))
 	command.Env = mergeInstallerEnvironment(os.Environ(), append([]string{
 		"GLOSS_INSTALL_TESTING=1",
 		"GLOSS_RELEASE_ROOT=" + releaseRoot,
@@ -621,6 +633,7 @@ func runInstallerIntegrationWithOptions(
 		"TMPDIR=" + tempDir,
 		"INSTALL_DIR=" + install,
 		"PATH=" + systemPath,
+		"SHELL=/bin/zsh",
 	}, extraEnv...)...)
 	output, runErr := command.CombinedOutput()
 	return installerRunResult{

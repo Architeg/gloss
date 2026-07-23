@@ -3,7 +3,6 @@ package release
 import (
 	"bytes"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -144,11 +143,12 @@ func TestInstallerReadsConfirmationFromTTYNotStdin(t *testing.T) {
 
 func TestInstallerNoninteractiveAndUnknownShellFallback(t *testing.T) {
 	tests := []struct {
-		name  string
-		shell string
-		want  string
+		name     string
+		shell    string
+		want     string
+		detached bool
 	}{
-		{name: "no terminal", shell: "/bin/zsh", want: "No interactive terminal is available"},
+		{name: "no terminal", shell: "/bin/zsh", want: "No interactive terminal is available", detached: true},
 		{name: "unknown shell", shell: "/bin/fish", want: "Could not determine a supported zsh or bash startup file"},
 		{name: "missing shell", want: "Could not determine a supported zsh or bash startup file"},
 	}
@@ -157,7 +157,7 @@ func TestInstallerNoninteractiveAndUnknownShellFallback(t *testing.T) {
 			home := canonicalTempDir(t)
 			output, err := runConfigurePATH(t, pathTestOptions{
 				home: home, shell: tt.shell, directory: filepath.Join(home, ".local", "bin"),
-				path: "/usr/bin:/bin",
+				path: "/usr/bin:/bin", detached: tt.detached,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -165,6 +165,14 @@ func TestInstallerNoninteractiveAndUnknownShellFallback(t *testing.T) {
 			if !strings.Contains(output, tt.want) ||
 				!strings.Contains(output, `export PATH="$HOME/.local/bin:$PATH"`) {
 				t.Fatalf("fallback output = %q", output)
+			}
+			if tt.detached {
+				manual := "Add this line to ~/.zshrc:\n" +
+					"  " + `export PATH="$HOME/.local/bin:$PATH"` + "\n" +
+					"Then restart your terminal."
+				if !strings.Contains(output, manual) {
+					t.Fatalf("manual PATH instructions = %q; want exact block %q", output, manual)
+				}
 			}
 			for _, rc := range []string{".zshrc", ".bashrc"} {
 				if _, err := os.Lstat(filepath.Join(home, rc)); !os.IsNotExist(err) {
@@ -259,7 +267,7 @@ func TestInstallerQuotesCustomPATHLiterally(t *testing.T) {
 		t.Fatalf("unsafe double-quoted path = %q", data)
 	}
 
-	command := exec.Command("bash", "--noprofile", "--norc", "-c", `source "$RC"; printf '%s\n' "${PATH%%:*}"`)
+	command := newInstallerTestCommand(t, false, "bash", "--noprofile", "--norc", "-c", `source "$RC"; printf '%s\n' "${PATH%%:*}"`)
 	command.Dir = home
 	command.Env = mergeInstallerEnvironment(os.Environ(),
 		"RC="+rc,
@@ -331,6 +339,7 @@ func TestInstallerShellEditFailuresPreserveOriginalAndCleanTemps(t *testing.T) {
 source "$INSTALL_SCRIPT"
 staged_shell_file=""
 trap cleanup EXIT
+sync_staged_file() { return 0; }
 `
 			switch failure {
 			case "staging":
@@ -356,7 +365,7 @@ if append_path_line_atomically "$RC" 'export PATH="$HOME/bin:$PATH"'; then
   exit 90
 fi
 `
-			command := exec.Command("bash", "-c", expression)
+			command := newInstallerTestCommand(t, false, "bash", "-c", expression)
 			command.Env = mergeInstallerEnvironment(os.Environ(),
 				"INSTALL_SCRIPT="+filepath.Join(root, "scripts", "install.sh"),
 				"HOME="+home,
@@ -425,6 +434,7 @@ type pathTestOptions struct {
 	path      string
 	reply     *string
 	stdin     string
+	detached  bool
 }
 
 func runConfigurePATH(t *testing.T, options pathTestOptions) (string, error) {
@@ -445,9 +455,10 @@ func runConfigurePATH(t *testing.T, options pathTestOptions) (string, error) {
 		}
 		environment = append(environment, "GLOSS_TEST_TTY="+reply)
 	}
-	command := exec.Command("bash", "-c", `
+	command := newInstallerTestCommand(t, options.detached, "bash", "-c", `
 source "$INSTALL_SCRIPT"
 trap cleanup EXIT
+sync_staged_file() { return 0; }
 configure_path "$DIRECTORY"
 `)
 	command.Env = mergeInstallerEnvironment(os.Environ(), environment...)

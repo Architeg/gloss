@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -114,7 +113,7 @@ func runInstallerFunction(t *testing.T, expression string, environment ...string
 		t.Fatal(err)
 	}
 	script := filepath.Join(root, "scripts", "install.sh")
-	command := exec.Command("bash", "-c", `source "$INSTALL_SCRIPT"; `+expression)
+	command := newInstallerTestCommand(t, false, "bash", "-c", `source "$INSTALL_SCRIPT"; `+expression)
 	command.Env = append(os.Environ(), append(environment, "INSTALL_SCRIPT="+script)...)
 	output, err := command.CombinedOutput()
 	return string(output), err
