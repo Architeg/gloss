@@ -21,15 +21,16 @@ func runUpdateCLI(
 	ctx context.Context,
 	out io.Writer,
 	install bool,
+	currentVersion string,
 	client updateCheckerDownloader,
 	inspect inspectUpdateFunc,
 	replace installUpdateFunc,
 ) error {
-	result, err := client.Check(ctx, Version)
+	result, err := client.Check(ctx, currentVersion)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "Current version: %s\n", Version)
+	fmt.Fprintf(out, "Current version: %s\n", currentVersion)
 	fmt.Fprintf(out, "Latest stable version: %s\n", result.LatestVersion)
 	if !result.UpdateAvailable {
 		fmt.Fprintln(out, "Gloss is up to date.")
@@ -57,7 +58,7 @@ func runUpdateCLI(
 		return nil
 	}
 	if !result.CurrentValid {
-		return fmt.Errorf("refusing to replace development or malformed version %q", Version)
+		return fmt.Errorf("refusing to replace development or malformed version %q", currentVersion)
 	}
 	if layoutErr != nil {
 		return layoutErr

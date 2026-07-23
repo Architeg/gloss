@@ -34,7 +34,7 @@ func (m *Model) automaticUpdateCommand() tea.Cmd {
 	return automaticUpdateCheckCmd(
 		m.updateChecker,
 		m.updateState,
-		m.updateVersion,
+		m.version,
 		interval,
 		timeout,
 		m.inspectUpdateLayout,

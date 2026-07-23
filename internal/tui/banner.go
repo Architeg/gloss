@@ -4,13 +4,13 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/Architeg/gloss/internal/buildinfo"
 )
 
 const glossRepoURL = "https://github.com/Architeg/gloss"
 
 const glossTagline = "Command glossary and alias helper"
-
-const glossVersionAuthor = "v0.1.1 • by Architeg"
 
 // Thin slash/underscore wordmark (original; not block glyphs).
 func glossWordmarkLines() []string {
@@ -34,7 +34,7 @@ func (m *Model) renderHomeBanner(termWidth int) string {
 		lipgloss.Left,
 		m.styles.RepoURL.Render(glossRepoURL),
 		m.styles.BannerTagline.Render(glossTagline),
-		m.styles.BannerMeta.Render(glossVersionAuthor),
+		m.styles.BannerMeta.Render(buildinfo.Display(m.version)+" • by Architeg"),
 	)
 
 	row := lipgloss.JoinHorizontal(lipgloss.Bottom, left, "  ", right)

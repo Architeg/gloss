@@ -54,7 +54,7 @@ func TestEarlyDispatchStatelessOutput(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			_, handled, code := earlyDispatch(tt.args, &stdout, &stderr)
+			_, handled, code := earlyDispatch(tt.args, &stdout, &stderr, "0.1.0")
 			if !handled || code != tt.wantCode {
 				t.Fatalf("handled/code = %v/%d, want true/%d", handled, code, tt.wantCode)
 			}
@@ -71,7 +71,7 @@ func TestEarlyDispatchStatelessOutput(t *testing.T) {
 func TestEarlyDispatchLeavesStatefulInvocationsUnhandled(t *testing.T) {
 	for _, args := range [][]string{nil, {"list"}, {"add"}, {"scan"}, {"alias", "sync"}} {
 		var stdout, stderr bytes.Buffer
-		_, handled, code := earlyDispatch(args, &stdout, &stderr)
+		_, handled, code := earlyDispatch(args, &stdout, &stderr, "0.1.0")
 		if handled || code != 0 || stdout.Len() != 0 || stderr.Len() != 0 {
 			t.Fatalf("earlyDispatch(%q) = handled %v, code %d, stdout %q, stderr %q", args, handled, code, stdout.String(), stderr.String())
 		}

@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/Architeg/gloss/internal/alias"
+	"github.com/Architeg/gloss/internal/buildinfo"
 	"github.com/Architeg/gloss/internal/clipboard"
 	"github.com/Architeg/gloss/internal/model"
 	"github.com/Architeg/gloss/internal/storage"
@@ -28,7 +29,7 @@ type Options struct {
 	Repo                *storage.EntryRepo
 	Clipboard           clipboard.Writer
 	UpdateChecker       updateChecker
-	UpdateVersion       string
+	Version             string
 	UpdateState         update.StateStore
 	InspectUpdateLayout func() (update.Layout, error)
 	UpdateTimeout       time.Duration
@@ -54,7 +55,7 @@ type Model struct {
 	errBanner  string
 
 	updateChecker       updateChecker
-	updateVersion       string
+	version             string
 	updateState         update.StateStore
 	inspectUpdateLayout func() (update.Layout, error)
 	updateTimeout       time.Duration
@@ -104,6 +105,10 @@ type Model struct {
 
 // New returns the initial TUI model.
 func New(opts Options) tea.Model {
+	version := opts.Version
+	if version == "" {
+		version = buildinfo.Version()
+	}
 	cw := contentWidth(80)
 	search := textinput.New()
 	search.Placeholder = "substring in command or description"
@@ -129,7 +134,7 @@ func New(opts Options) tea.Model {
 		bulkTagForm:         newBulkTagFormState(cw),
 		multiSelected:       make(map[int64]struct{}),
 		updateChecker:       opts.UpdateChecker,
-		updateVersion:       opts.UpdateVersion,
+		version:             version,
 		updateState:         opts.UpdateState,
 		inspectUpdateLayout: opts.InspectUpdateLayout,
 		updateTimeout:       opts.UpdateTimeout,

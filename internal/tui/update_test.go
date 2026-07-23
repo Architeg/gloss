@@ -9,21 +9,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Architeg/gloss/internal/buildinfo"
 	"github.com/Architeg/gloss/internal/model"
 	"github.com/Architeg/gloss/internal/update"
 )
 
 type fakeAutomaticChecker struct {
-	mu     sync.Mutex
-	calls  int
-	result update.CheckResult
-	err    error
+	mu      sync.Mutex
+	calls   int
+	result  update.CheckResult
+	err     error
+	current string
 }
 
-func (f *fakeAutomaticChecker) Check(context.Context, string) (update.CheckResult, error) {
+func (f *fakeAutomaticChecker) Check(_ context.Context, current string) (update.CheckResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
+	f.current = current
 	return f.result, f.err
 }
 
@@ -31,6 +34,12 @@ func (f *fakeAutomaticChecker) callCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.calls
+}
+
+func (f *fakeAutomaticChecker) currentVersion() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.current
 }
 
 func TestAutomaticUpdateDisabledSchedulesNothing(t *testing.T) {
@@ -57,7 +66,7 @@ func TestAutomaticUpdateDueCheckIsDeferredAndRecorded(t *testing.T) {
 	m := New(Options{
 		Config:              &model.Config{CheckForUpdates: true, UpdateCheckInterval: model.UpdateInterval(24 * time.Hour)},
 		UpdateChecker:       checker,
-		UpdateVersion:       "0.1.0",
+		Version:             "0.1.0",
 		UpdateState:         state,
 		InspectUpdateLayout: func() (update.Layout, error) { return update.Layout{}, nil },
 		UpdateTimeout:       time.Second,
@@ -149,5 +158,26 @@ func TestAutomaticUpdateNoUpdateIsQuiet(t *testing.T) {
 	_, cmd := m.Update(automaticUpdateMsg{result: update.CheckResult{LatestVersion: "0.1.0"}})
 	if cmd != nil || m.updateNotice != "existing notice" {
 		t.Fatalf("no-update result changed notice: %q", m.updateNotice)
+	}
+}
+
+func TestBannerAndUpdaterUseSameResolvedVersion(t *testing.T) {
+	version := buildinfo.Resolve("v3.2.1", nil)
+	checker := &fakeAutomaticChecker{result: update.CheckResult{LatestVersion: version}}
+	m := New(Options{
+		Config:        &model.Config{CheckForUpdates: true, UpdateCheckInterval: model.UpdateInterval(time.Hour)},
+		Version:       version,
+		UpdateChecker: checker,
+		UpdateState:   update.StateStore{Path: filepath.Join(t.TempDir(), "state.json")},
+	}).(*Model)
+	if !strings.Contains(stripANSI(m.renderHomeBanner(100)), "v3.2.1") {
+		t.Fatalf("banner does not contain resolved version: %q", stripANSI(m.renderHomeBanner(100)))
+	}
+	msg := m.automaticUpdateCommand()().(automaticUpdateMsg)
+	if msg.err != nil || checker.callCount() != 1 {
+		t.Fatalf("automatic update check = %#v, calls=%d", msg, checker.callCount())
+	}
+	if checker.currentVersion() != version {
+		t.Fatalf("updater received %q, want banner version %q", checker.currentVersion(), version)
 	}
 }

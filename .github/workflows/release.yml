@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Validate stable tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Release tag must match vMAJOR.MINOR.PATCH: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+          if [[ "$(git rev-list -n 1 "$GITHUB_REF_NAME")" != "$GITHUB_SHA" ]]; then
+            echo "Checked-out commit does not match release tag" >&2
+            exit 1
+          fi
+
+      - name: Verify formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          unformatted="$(gofmt -l .)"
+          if [[ -n "$unformatted" ]]; then
+            echo "The following files require gofmt:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+
+      - name: Test
+        run: go test ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build and validate release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact_dir="$RUNNER_TEMP/gloss-release"
+          mkdir -m 700 "$artifact_dir"
+          scripts/build-release.sh "$GITHUB_REF_NAME" "$artifact_dir"
+          {
+            echo "ARTIFACT_DIR=$artifact_dir"
+          } >> "$GITHUB_ENV"
+
+      - name: Refuse an existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; refusing to replace it" >&2
+            exit 1
+          fi
+
+      - name: Create and verify draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            "$ARTIFACT_DIR/gloss-darwin-amd64.zip" \
+            "$ARTIFACT_DIR/gloss-darwin-arm64.zip" \
+            "$ARTIFACT_DIR/gloss-linux-amd64.zip" \
+            "$ARTIFACT_DIR/gloss-linux-arm64.zip" \
+            "$ARTIFACT_DIR/checksums.txt" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --draft \
+            --title "Gloss $GITHUB_REF_NAME" \
+            --generate-notes
+
+          expected="$RUNNER_TEMP/expected-assets.txt"
+          actual="$RUNNER_TEMP/actual-assets.txt"
+          printf '%s\n' \
+            checksums.txt \
+            gloss-darwin-amd64.zip \
+            gloss-darwin-arm64.zip \
+            gloss-linux-amd64.zip \
+            gloss-linux-arm64.zip > "$expected"
+          gh api \
+            "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" \
+            --jq '.assets[].name' | sort > "$actual"
+          if ! cmp -s "$expected" "$actual"; then
+            echo "Draft release asset set is incomplete or unexpected" >&2
+            diff -u "$expected" "$actual" >&2 || true
+            exit 1
+          fi
+
+      - name: Publish verified release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest

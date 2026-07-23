@@ -16,9 +16,11 @@ type fakeUpdateClient struct {
 	verified     update.VerifiedUpdate
 	downloadErr  error
 	downloadCall int
+	current      string
 }
 
-func (f *fakeUpdateClient) Check(context.Context, string) (update.CheckResult, error) {
+func (f *fakeUpdateClient) Check(_ context.Context, current string) (update.CheckResult, error) {
+	f.current = current
 	return f.result, f.checkErr
 }
 
@@ -36,7 +38,7 @@ func TestRunUpdateCLICheckNeverInstalls(t *testing.T) {
 	}}
 	var installed bool
 	var out bytes.Buffer
-	err := runUpdateCLI(context.Background(), &out, false, client,
+	err := runUpdateCLI(context.Background(), &out, false, "0.1.0", client,
 		func() (update.Layout, error) { return update.Layout{Kind: update.LayoutManual}, nil },
 		func(update.Layout, update.VerifiedUpdate) error {
 			installed = true
@@ -45,6 +47,9 @@ func TestRunUpdateCLICheckNeverInstalls(t *testing.T) {
 	)
 	if err != nil || installed || client.downloadCall != 0 {
 		t.Fatalf("check result: err=%v installed=%v downloads=%d", err, installed, client.downloadCall)
+	}
+	if client.current != "0.1.0" {
+		t.Fatalf("updater received current version %q", client.current)
 	}
 	if !strings.Contains(out.String(), "Current version: 0.1.0") ||
 		!strings.Contains(out.String(), "Latest stable version: 0.2.0") ||
@@ -72,7 +77,7 @@ func TestRunUpdateCLIInstall(t *testing.T) {
 	}
 	var installed update.VerifiedUpdate
 	var out bytes.Buffer
-	err := runUpdateCLI(context.Background(), &out, true, client,
+	err := runUpdateCLI(context.Background(), &out, true, "0.1.0", client,
 		func() (update.Layout, error) {
 			return update.Layout{Kind: update.LayoutManual, Platform: platform}, nil
 		},
@@ -92,7 +97,7 @@ func TestRunUpdateCLIInstall(t *testing.T) {
 func TestRunUpdateCLIAlreadyCurrent(t *testing.T) {
 	client := &fakeUpdateClient{result: update.CheckResult{CurrentValid: true, LatestVersion: "0.1.0"}}
 	var out bytes.Buffer
-	if err := runUpdateCLI(context.Background(), &out, true, client,
+	if err := runUpdateCLI(context.Background(), &out, true, "0.1.0", client,
 		func() (update.Layout, error) { t.Fatal("inspect called"); return update.Layout{}, nil },
 		func(update.Layout, update.VerifiedUpdate) error { t.Fatal("replace called"); return nil },
 	); err != nil {
@@ -109,7 +114,7 @@ func TestRunUpdateCLIHomebrewGuidance(t *testing.T) {
 	}}
 	for _, install := range []bool{false, true} {
 		var out bytes.Buffer
-		err := runUpdateCLI(context.Background(), &out, install, client,
+		err := runUpdateCLI(context.Background(), &out, install, "0.1.0", client,
 			func() (update.Layout, error) {
 				return update.Layout{Kind: update.LayoutHomebrew}, &update.HomebrewError{Path: "/opt/homebrew/Cellar/gloss"}
 			},
@@ -140,7 +145,7 @@ func TestRunUpdateCLIRejectsUnsafeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := &fakeUpdateClient{result: tt.result}
-			err := runUpdateCLI(context.Background(), &bytes.Buffer{}, true, client,
+			err := runUpdateCLI(context.Background(), &bytes.Buffer{}, true, "0.1.0", client,
 				func() (update.Layout, error) { return update.Layout{}, tt.err },
 				func(update.Layout, update.VerifiedUpdate) error { t.Fatal("replace called"); return nil },
 			)

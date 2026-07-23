@@ -14,6 +14,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/Architeg/gloss/internal/buildinfo"
 	"github.com/Architeg/gloss/internal/config"
 	"github.com/Architeg/gloss/internal/model"
 	"github.com/Architeg/gloss/internal/scan"
@@ -23,10 +24,6 @@ import (
 )
 
 var (
-	Version = "0.1.0"
-	Commit  = "dev"
-	Date    = "unknown"
-
 	newUpdateClient = func() *update.Client {
 		return update.NewClient(&http.Client{Timeout: 30 * time.Second})
 	}
@@ -35,7 +32,8 @@ var (
 )
 
 func main() {
-	invocation, handled, exitCode := earlyDispatch(os.Args[1:], os.Stdout, os.Stderr)
+	appVersion := buildinfo.Version()
+	invocation, handled, exitCode := earlyDispatch(os.Args[1:], os.Stdout, os.Stderr, appVersion)
 	if handled {
 		if exitCode != 0 {
 			os.Exit(exitCode)
@@ -118,7 +116,7 @@ func main() {
 			Config:              cfg,
 			Repo:                repo,
 			UpdateChecker:       update.NewClient(&http.Client{Timeout: 10 * time.Second}),
-			UpdateVersion:       Version,
+			Version:             appVersion,
 			UpdateState:         update.StateStore{Path: filepath.Join(cfg.StoragePath, "update-state.json")},
 			InspectUpdateLayout: inspectUpdateExecutable,
 			UpdateTimeout:       10 * time.Second,
@@ -139,7 +137,7 @@ type invocation struct {
 	updateInstall bool
 }
 
-func earlyDispatch(args []string, stdout, stderr io.Writer) (invocation, bool, int) {
+func earlyDispatch(args []string, stdout, stderr io.Writer, appVersion string) (invocation, bool, int) {
 	inv, err := parseInvocation(args)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
@@ -147,7 +145,7 @@ func earlyDispatch(args []string, stdout, stderr io.Writer) (invocation, bool, i
 	}
 	switch inv.name {
 	case "version":
-		printVersion(stdout)
+		printVersion(stdout, appVersion)
 		return inv, true, 0
 	case "help":
 		printCLIHelp(stdout)
@@ -156,7 +154,7 @@ func earlyDispatch(args []string, stdout, stderr io.Writer) (invocation, bool, i
 		printUpdateHelp(stdout)
 		return inv, true, 0
 	case "update":
-		if err := runUpdateCLI(context.Background(), stdout, inv.updateInstall, newUpdateClient(), inspectUpdateExecutable, installVerifiedUpdate); err != nil {
+		if err := runUpdateCLI(context.Background(), stdout, inv.updateInstall, appVersion, newUpdateClient(), inspectUpdateExecutable, installVerifiedUpdate); err != nil {
 			fmt.Fprintf(stderr, "gloss: update: %v\n", err)
 			return inv, true, 1
 		}
@@ -227,8 +225,8 @@ func parseInvocation(args []string) (invocation, error) {
 	}
 }
 
-func printVersion(w io.Writer) {
-	fmt.Fprintf(w, "gloss %s\n", Version)
+func printVersion(w io.Writer, appVersion string) {
+	fmt.Fprintf(w, "gloss %s\n", appVersion)
 }
 
 func printCLIHelp(w io.Writer) {
