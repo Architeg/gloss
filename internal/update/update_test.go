@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -175,6 +177,128 @@ func TestDownloadVerifiedChecksDigestBeforeArchiveValidation(t *testing.T) {
 	checksumBody = []byte(strings.Repeat("0", 64) + "  " + platform.Archive + "\n")
 	if _, err := client.DownloadVerified(context.Background(), release); err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
 		t.Fatalf("bad checksum error = %v", err)
+	}
+}
+
+func TestUpdaterFixtureCheckDownloadAndAtomicInstall(t *testing.T) {
+	platform, _ := PlatformFor("linux", "amd64")
+	executable := []byte("#!/bin/sh\nprintf 'gloss 0.1.1\\n'\n")
+	archive := makeZIP(t, platform.Executable, executable, 0o755)
+	digest := sha256.Sum256(archive)
+	checksums := []byte(hex.EncodeToString(digest[:]) + "  " + platform.Archive + "\n")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/releases":
+			_ = json.NewEncoder(w).Encode([]githubRelease{{
+				TagName: "v0.1.1",
+				Assets:  releaseAssets("http://"+r.Host, "linux", "amd64"),
+			}})
+		case "/" + platform.Archive:
+			_, _ = w.Write(archive)
+		case "/checksums.txt":
+			_, _ = w.Write(checksums)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(server.Client())
+	client.ReleasesURL = server.URL + "/releases"
+	client.GOOS, client.GOARCH = "linux", "amd64"
+	result, err := client.Check(context.Background(), "0.1.0")
+	if err != nil || !result.UpdateAvailable || result.LatestVersion != "0.1.1" {
+		t.Fatalf("fixture check = %#v, %v", result, err)
+	}
+
+	target := filepath.Join(t.TempDir(), "gloss")
+	original := []byte("old executable")
+	if err := os.WriteFile(target, original, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	layout, err := InspectExecutable(target, "linux", "amd64")
+	if err != nil {
+		t.Fatal(err)
+	}
+	verified, err := client.DownloadVerified(context.Background(), result.Release)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := InstallVerified(layout, verified); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(target)
+	if err != nil || !bytes.Equal(data, executable) {
+		t.Fatalf("installed data = %q, %v", data, err)
+	}
+	info, err := os.Stat(target)
+	if err != nil || info.Mode().Perm()&0111 == 0 {
+		t.Fatalf("installed mode = %v, %v", info.Mode(), err)
+	}
+	output, err := exec.Command(target, "version").CombinedOutput()
+	if err != nil || strings.TrimSpace(string(output)) != "gloss 0.1.1" {
+		t.Fatalf("installed binary = %q, %v", output, err)
+	}
+}
+
+func TestUpdaterVerificationFailuresPreserveTarget(t *testing.T) {
+	platform, _ := PlatformFor("linux", "amd64")
+	goodArchive := makeZIP(t, platform.Executable, []byte("new"), 0o755)
+	tests := []struct {
+		name      string
+		archive   []byte
+		checksums []byte
+	}{
+		{
+			name:      "wrong checksum",
+			archive:   goodArchive,
+			checksums: []byte(strings.Repeat("0", 64) + "  " + platform.Archive + "\n"),
+		},
+		{
+			name:      "malformed ZIP",
+			archive:   []byte("not a ZIP"),
+			checksums: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.checksums == nil {
+				digest := sha256.Sum256(tt.archive)
+				tt.checksums = []byte(hex.EncodeToString(digest[:]) + "  " + platform.Archive + "\n")
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/archive.zip":
+					_, _ = w.Write(tt.archive)
+				case "/checksums.txt":
+					_, _ = w.Write(tt.checksums)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+
+			target := filepath.Join(t.TempDir(), "gloss")
+			original := []byte("original")
+			if err := os.WriteFile(target, original, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			client := NewClient(server.Client())
+			release := Release{
+				Version:   Version{0, 1, 1},
+				Platform:  platform,
+				Archive:   Asset{Name: platform.Archive, URL: server.URL + "/archive.zip"},
+				Checksums: Asset{Name: "checksums.txt", URL: server.URL + "/checksums.txt"},
+			}
+			if _, err := client.DownloadVerified(context.Background(), release); err == nil {
+				t.Fatal("unverified update was accepted")
+			}
+			data, err := os.ReadFile(target)
+			if err != nil || !bytes.Equal(data, original) {
+				t.Fatalf("target after verification failure = %q, %v", data, err)
+			}
+		})
 	}
 }
 

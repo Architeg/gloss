@@ -1,9 +1,18 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -94,6 +103,86 @@ func TestRunUpdateCLIInstall(t *testing.T) {
 	}
 }
 
+func TestRunUpdateCLIWithLocalVerifiedRelease(t *testing.T) {
+	platform, _ := update.PlatformFor("darwin", "amd64")
+	executable := []byte("#!/bin/sh\nprintf 'gloss 0.1.1\\n'\n")
+	archive := commandUpdateZIP(t, platform.Executable, executable)
+	digest := sha256.Sum256(archive)
+	checksums := []byte(fmt.Sprintf("%x  %s\n", digest, platform.Archive))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/releases":
+			_ = json.NewEncoder(w).Encode([]map[string]any{{
+				"tag_name": "v0.1.1",
+				"assets": []map[string]string{
+					{"name": platform.Archive, "browser_download_url": "http://" + r.Host + "/archive.zip"},
+					{"name": "checksums.txt", "browser_download_url": "http://" + r.Host + "/checksums.txt"},
+				},
+			}})
+		case "/archive.zip":
+			_, _ = w.Write(archive)
+		case "/checksums.txt":
+			_, _ = w.Write(checksums)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := update.NewClient(server.Client())
+	client.ReleasesURL = server.URL + "/releases"
+	client.GOOS, client.GOARCH = platform.GOOS, platform.GOARCH
+	target := filepath.Join(t.TempDir(), "gloss")
+	original := []byte("old executable")
+	if err := os.WriteFile(target, original, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	inspect := func() (update.Layout, error) {
+		return update.InspectExecutable(target, platform.GOOS, platform.GOARCH)
+	}
+
+	var checkOutput bytes.Buffer
+	if err := runUpdateCLI(
+		context.Background(),
+		&checkOutput,
+		false,
+		"0.1.0",
+		client,
+		inspect,
+		update.InstallVerified,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(checkOutput.String(), "Latest stable version: 0.1.1") ||
+		!strings.Contains(checkOutput.String(), "Run: gloss update --install") {
+		t.Fatalf("check output = %q", checkOutput.String())
+	}
+	if data, err := os.ReadFile(target); err != nil || !bytes.Equal(data, original) {
+		t.Fatalf("check-only target = %q, %v", data, err)
+	}
+
+	var installOutput bytes.Buffer
+	if err := runUpdateCLI(
+		context.Background(),
+		&installOutput,
+		true,
+		"0.1.0",
+		client,
+		inspect,
+		update.InstallVerified,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(installOutput.String(), "Installed Gloss 0.1.1.") {
+		t.Fatalf("install output = %q", installOutput.String())
+	}
+	output, err := exec.Command(target, "version").CombinedOutput()
+	if err != nil || strings.TrimSpace(string(output)) != "gloss 0.1.1" {
+		t.Fatalf("installed fixture = %q, %v", output, err)
+	}
+}
+
 func TestRunUpdateCLIAlreadyCurrent(t *testing.T) {
 	client := &fakeUpdateClient{result: update.CheckResult{CurrentValid: true, LatestVersion: "0.1.0"}}
 	var out bytes.Buffer
@@ -106,6 +195,25 @@ func TestRunUpdateCLIAlreadyCurrent(t *testing.T) {
 	if !strings.Contains(out.String(), "up to date") || client.downloadCall != 0 {
 		t.Fatalf("current output = %q, downloads=%d", out.String(), client.downloadCall)
 	}
+}
+
+func commandUpdateZIP(t *testing.T, name string, data []byte) []byte {
+	t.Helper()
+	var body bytes.Buffer
+	writer := zip.NewWriter(&body)
+	header := &zip.FileHeader{Name: name, Method: zip.Deflate}
+	header.SetMode(0o755)
+	entry, err := writer.CreateHeader(header)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := entry.Write(data); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return body.Bytes()
 }
 
 func TestRunUpdateCLIHomebrewGuidance(t *testing.T) {

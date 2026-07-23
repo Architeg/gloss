@@ -8,7 +8,7 @@
 <p align="center">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white"/>
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-2f855a"/>
-  <img alt="Version" src="https://img.shields.io/badge/version-v0.1.0-111827"/>
+  <img alt="Version" src="https://img.shields.io/badge/version-v0.1.1-111827"/>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-2563eb"/>
   <a href="https://github.com/Architeg/gloss/commits/main">
     <img alt="Commit activity" src="https://img.shields.io/github/commit-activity/m/Architeg/gloss?label=commits"/>
@@ -58,6 +58,7 @@ I built it because I kept re-searching the same commands and spreading aliases a
 
 - Officially supported: macOS with zsh
 - Officially supported: Linux with bash
+- Release architectures: `amd64` and `arm64`
 - Not officially supported yet: Windows
 
 Default shell files:
@@ -88,7 +89,7 @@ Install a specific version:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Architeg/gloss/main/scripts/install.sh -o /tmp/gloss-install.sh
-VERSION=v0.1.0 bash /tmp/gloss-install.sh
+VERSION=v0.1.1 bash /tmp/gloss-install.sh
 ```
 
 ### Option 2 - Homebrew
@@ -118,16 +119,49 @@ HOMEBREW_NO_AUTO_UPDATE=1 brew install Architeg/tap/gloss
 
 ### Option 3 - Manual install
 
-Download the correct asset from [GitHub Releases](https://github.com/Architeg/gloss/releases).
+Download the correct ZIP and `checksums.txt` from [GitHub Releases](https://github.com/Architeg/gloss/releases). Verify the ZIP before extracting it.
 
 Example for macOS Apple Silicon:
 
 ```bash
+grep -E '^[0-9a-fA-F]{64}  gloss-darwin-arm64\.zip$' checksums.txt > gloss.sha256
+test "$(wc -l < gloss.sha256)" -eq 1
+shasum -a 256 -c gloss.sha256
 unzip gloss-darwin-arm64.zip
-chmod +x gloss-darwin-arm64
-sudo mv gloss-darwin-arm64 /usr/local/bin/gloss
+mkdir -p "$HOME/.local/bin"
+install -m 0755 gloss-darwin-arm64 "$HOME/.local/bin/gloss"
 gloss version
 ```
+
+### Option 4 - Go install
+
+With Go 1.25 or newer:
+
+```bash
+go install github.com/Architeg/gloss/cmd/gloss@latest
+```
+
+## Updates
+
+Check the latest stable release without changing the installed executable:
+
+```bash
+gloss update
+```
+
+For a standalone installation, explicitly verify and install an available update:
+
+```bash
+gloss update --install
+```
+
+For Homebrew:
+
+```bash
+brew upgrade Architeg/tap/gloss
+```
+
+On the first TUI launch, Gloss asks whether it may check GitHub for updates automatically. The choice can be changed later in **Settings**. Automatic checks run at most once per configured interval, stay quiet when current or offline, and never install updates.
 
 ## Quick start
 
@@ -161,7 +195,7 @@ Main sections:
 - **Add** — create a command entry with description and tags
 - **Scan** — review aliases/functions/scripts found in configured scan paths
 - **Aliases** — add, view, preview, sync, and delete managed aliases
-- **Settings** — view shell file, storage path, scan paths, and config path
+- **Settings** — view paths and turn automatic update checks on or off
 - **Readme** — built-in help
 
 <p align="center">
@@ -381,10 +415,9 @@ Optional: remove the managed alias block from `~/.zshrc` or `~/.bashrc`:
 # <<< gloss aliases <<<
 ```
 
-If the install script added Gloss to your `PATH`, remove this block from your shell config:
+If you manually added Gloss to your `PATH`, remove the corresponding line from your shell config:
 
 ```bash
-# --- Path to Gloss ---
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
