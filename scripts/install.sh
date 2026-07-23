@@ -11,6 +11,7 @@ readonly MAX_CHECKSUM_BYTES=$((1024 * 1024))
 
 temporary_dir=""
 staged_executable=""
+staged_shell_file=""
 
 fail() {
   echo "gloss installer: $*" >&2
@@ -20,6 +21,9 @@ fail() {
 cleanup() {
   if [[ -n "$staged_executable" && -f "$staged_executable" ]]; then
     rm -f -- "$staged_executable"
+  fi
+  if [[ -n "$staged_shell_file" && -f "$staged_shell_file" ]]; then
+    rm -f -- "$staged_shell_file"
   fi
   if [[ -n "$temporary_dir" && -d "$temporary_dir" ]]; then
     rm -rf -- "$temporary_dir"
@@ -371,6 +375,327 @@ install_atomically() {
   staged_executable=""
 }
 
+path_contains_directory() {
+  local expected="$1"
+  local remaining="${PATH:-}"
+  local entry
+  while true; do
+    case "$remaining" in
+      *:*)
+        entry="${remaining%%:*}"
+        remaining="${remaining#*:}"
+        ;;
+      *)
+        entry="$remaining"
+        remaining=""
+        ;;
+    esac
+    if [[ "$entry" == "$expected" ]]; then
+      return 0
+    fi
+    [[ -n "$remaining" ]] || return 1
+  done
+}
+
+single_quote_shell() {
+  local value="$1"
+  local prefix
+  printf "'"
+  while [[ "$value" == *"'"* ]]; do
+    prefix="${value%%\'*}"
+    printf '%s%s' "$prefix" "'\\''"
+    value="${value#*\'}"
+  done
+  printf "%s'" "$value"
+}
+
+safe_in_double_quotes() {
+  local value="$1"
+  case "$value" in
+    *'$'* | *'`'* | *'\'* | *'"'* | *'!'* | *$'\n'* | *$'\r'*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+path_export_line() {
+  local directory="$1"
+  local suffix
+  local literal
+  if [[ "$directory" == "$HOME" ]]; then
+    printf '%s\n' 'export PATH="$HOME:$PATH"'
+    return
+  fi
+  if [[ "$directory" == "$HOME/"* ]]; then
+    suffix="${directory#"$HOME"}"
+    if safe_in_double_quotes "$suffix"; then
+      printf 'export PATH="$HOME%s:$PATH"\n' "$suffix"
+      return
+    fi
+  fi
+  literal="$(single_quote_shell "$directory")"
+  printf 'export PATH=%s:$PATH\n' "$literal"
+}
+
+shell_startup_file() {
+  if [[ -z "${HOME:-}" || "$HOME" != /* || -L "$HOME" || ! -d "$HOME" ]]; then
+    return 1
+  fi
+  case "${SHELL##*/}" in
+    zsh) printf '%s\n' "$HOME/.zshrc" ;;
+    bash) printf '%s\n' "$HOME/.bashrc" ;;
+    *) return 1 ;;
+  esac
+}
+
+display_shell_file() {
+  local path="$1"
+  case "$path" in
+    "$HOME"/*) printf '~/%s\n' "${path#"$HOME"/}" ;;
+    *) single_quote_shell "$path"; printf '\n' ;;
+  esac
+}
+
+file_mode() {
+  local path="$1"
+  if stat -f '%Lp' "$path" >/dev/null 2>&1; then
+    stat -f '%Lp' "$path"
+  else
+    stat -c '%a' "$path"
+  fi
+}
+
+path_line_exists() {
+  local file="$1"
+  local directory="$2"
+  local generated="$3"
+  [[ -f "$file" && ! -L "$file" ]] || return 1
+
+  local absolute
+  local legacy=""
+  local unquoted=""
+  absolute="export PATH=$(single_quote_shell "$directory"):\$PATH"
+  if safe_in_double_quotes "$directory"; then
+    legacy="export PATH=\"$directory:\$PATH\""
+  fi
+  if [[ "$directory" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
+    unquoted="export PATH=$directory:\$PATH"
+  fi
+
+  local line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" == "$generated" || "$line" == "$absolute" ||
+      (-n "$legacy" && "$line" == "$legacy") ||
+      (-n "$unquoted" && "$line" == "$unquoted") ]]; then
+      return 0
+    fi
+  done < "$file"
+  return 1
+}
+
+discard_staged_shell_file() {
+  if [[ -n "$staged_shell_file" && -f "$staged_shell_file" ]]; then
+    rm -f -- "$staged_shell_file"
+  fi
+  staged_shell_file=""
+}
+
+sync_staged_file() {
+  local path="$1"
+  if ! command -v sync >/dev/null 2>&1; then
+    return 0
+  fi
+  if sync "$path" >/dev/null 2>&1; then
+    return 0
+  fi
+  sync >/dev/null 2>&1
+}
+
+append_path_line_atomically() {
+  local shell_file="$1"
+  local path_line="$2"
+  local existed=false
+  local before=""
+  local mode=600
+
+  if [[ -L "$shell_file" ]]; then
+    fail "refusing symlinked shell startup file: $shell_file"
+    return 1
+  fi
+  if [[ -e "$shell_file" ]]; then
+    if [[ ! -f "$shell_file" ]]; then
+      fail "shell startup target is not a regular file: $shell_file"
+      return 1
+    fi
+    existed=true
+    before="$(file_identity "$shell_file")" || return 1
+    mode="$(file_mode "$shell_file")" || return 1
+  fi
+
+  staged_shell_file="$(mktemp "$(dirname -- "$shell_file")/.gloss-path.XXXXXX")" || return 1
+  if [[ "$existed" == true ]]; then
+    if ! cp -- "$shell_file" "$staged_shell_file"; then
+      discard_staged_shell_file
+      return 1
+    fi
+  fi
+  if ! chmod "$mode" "$staged_shell_file"; then
+    discard_staged_shell_file
+    return 1
+  fi
+  if [[ -s "$staged_shell_file" ]]; then
+    if ! printf '\n' >> "$staged_shell_file"; then
+      discard_staged_shell_file
+      return 1
+    fi
+  fi
+  if ! printf '%s\n' "$path_line" >> "$staged_shell_file"; then
+    discard_staged_shell_file
+    return 1
+  fi
+  if ! sync_staged_file "$staged_shell_file"; then
+    discard_staged_shell_file
+    return 1
+  fi
+
+  if [[ "$existed" == true ]]; then
+    if [[ -L "$shell_file" || ! -f "$shell_file" ||
+      "$(file_identity "$shell_file")" != "$before" ]]; then
+      fail "shell startup file changed while updating: $shell_file"
+      discard_staged_shell_file
+      return 1
+    fi
+  elif [[ -e "$shell_file" || -L "$shell_file" ]]; then
+    fail "shell startup file appeared while updating: $shell_file"
+    discard_staged_shell_file
+    return 1
+  fi
+
+  if ! mv -f -- "$staged_shell_file" "$shell_file"; then
+    discard_staged_shell_file
+    return 1
+  fi
+  staged_shell_file=""
+}
+
+installer_tty() {
+  if [[ -n "${GLOSS_TEST_TTY:-}" ]]; then
+    if [[ "${GLOSS_INSTALL_TESTING:-}" != "1" || "$GLOSS_TEST_TTY" != /* ||
+      -L "$GLOSS_TEST_TTY" || ! -f "$GLOSS_TEST_TTY" ]]; then
+      return 1
+    fi
+    printf '%s\n' "$GLOSS_TEST_TTY"
+    return
+  fi
+  printf '%s\n' "/dev/tty"
+}
+
+confirm_path_update() {
+  local display_file="$1"
+  local tty_path
+  tty_path="$(installer_tty)" || return 2
+  if ! { exec 3< "$tty_path"; } 2>/dev/null; then
+    return 2
+  fi
+  if [[ -z "${GLOSS_TEST_TTY:-}" && ! -t 3 ]]; then
+    exec 3<&-
+    return 2
+  fi
+
+  printf 'Add Gloss to PATH in %s? [Y/n] ' "$display_file"
+  local reply
+  if ! IFS= read -r reply <&3; then
+    exec 3<&-
+    return 2
+  fi
+  exec 3<&-
+  case "$reply" in
+    "" | y | Y | yes | YES) return 0 ;;
+    n | N | no | NO) return 1 ;;
+    *) return 3 ;;
+  esac
+}
+
+print_manual_path_instructions() {
+  local path_line="$1"
+  local display_file="${2:-}"
+  if [[ -n "$display_file" ]]; then
+    echo "Add this line to $display_file:"
+  else
+    echo "Add this line to your zsh or bash startup file:"
+  fi
+  printf '  %s\n' "$path_line"
+  echo "Then restart your terminal."
+}
+
+configure_path() {
+  local directory="$1"
+  if path_contains_directory "$directory"; then
+    echo "Run: gloss version"
+    return 0
+  fi
+
+  local path_line
+  path_line="$(path_export_line "$directory")"
+  echo "$directory is not in PATH."
+
+  local shell_file
+  if ! shell_file="$(shell_startup_file)"; then
+    echo "Could not determine a supported zsh or bash startup file."
+    print_manual_path_instructions "$path_line"
+    return 0
+  fi
+  local display_file
+  display_file="$(display_shell_file "$shell_file")"
+
+  if [[ -L "$shell_file" ]]; then
+    echo "Warning: refusing to modify symlinked shell startup file $display_file."
+    print_manual_path_instructions "$path_line" "$display_file"
+    return 0
+  fi
+  if [[ -e "$shell_file" && ! -f "$shell_file" ]]; then
+    echo "Warning: refusing to modify nonregular shell startup file $display_file."
+    print_manual_path_instructions "$path_line" "$display_file"
+    return 0
+  fi
+  if path_line_exists "$shell_file" "$directory" "$path_line"; then
+    echo "Shell configuration already contains this PATH entry in $display_file."
+    printf 'Run: source %s\n' "$display_file"
+    return 0
+  fi
+
+  echo "Proposed PATH line:"
+  printf '  %s\n' "$path_line"
+  local confirmation
+  if confirm_path_update "$display_file"; then
+    confirmation=0
+  else
+    confirmation=$?
+  fi
+  case "$confirmation" in
+    0)
+      if append_path_line_atomically "$shell_file" "$path_line"; then
+        echo "Gloss PATH entry added to $display_file."
+        printf 'Run: source %s\n' "$display_file"
+      else
+        echo "Warning: could not safely update $display_file."
+        print_manual_path_instructions "$path_line" "$display_file"
+      fi
+      ;;
+    1)
+      echo "Skipped PATH update."
+      print_manual_path_instructions "$path_line" "$display_file"
+      ;;
+    2)
+      echo "No interactive terminal is available; shell configuration was not changed."
+      print_manual_path_instructions "$path_line" "$display_file"
+      ;;
+    *)
+      echo "Unrecognized response; PATH configuration was not changed."
+      print_manual_path_instructions "$path_line" "$display_file"
+      ;;
+  esac
+}
+
 main() {
   for command in curl unzip zipinfo awk mktemp; do
     if ! command -v "$command" >/dev/null 2>&1; then
@@ -438,21 +763,7 @@ main() {
   echo
   echo "Gloss ${tag#v} installed."
   echo "Destination: $target"
-  case ":$PATH:" in
-    *":$(dirname -- "$target"):"*)
-      echo "Run: gloss version"
-      ;;
-    *)
-      local path_directory
-      local escaped_directory
-      path_directory="$(dirname -- "$target")"
-      escaped_directory="${path_directory//\'/\'\\\'\'}"
-      echo "$path_directory is not in PATH."
-      echo "Add this to your shell configuration:"
-      printf "  export PATH='%s':%s\n" "$escaped_directory" '$PATH'
-      echo "Then run: gloss version"
-      ;;
-  esac
+  configure_path "$(dirname -- "$target")" || true
   echo "Homebrew users should install with: brew install Architeg/tap/gloss"
 }
 

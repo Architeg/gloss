@@ -83,7 +83,7 @@ By default, the script installs Gloss to:
 ~/.local/bin/gloss
 ```
 
-If `~/.local/bin` is not in your `PATH`, the installer prints the exact commands to add it.
+If the install directory is not in `PATH`, an interactive install offers to add it to `~/.zshrc` or `~/.bashrc`. You can decline. When no interactive terminal is available, the installer prints the exact line to add manually. The installer never invokes `sudo`; after updating the file, restart the terminal or run the printed `source` command.
 
 Install a specific version:
 

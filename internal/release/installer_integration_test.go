@@ -611,18 +611,17 @@ func runInstallerIntegrationWithOptions(
 		unameM = "x86_64"
 	}
 	command := exec.Command("bash", filepath.Join(repositoryRoot, "scripts", "install.sh"))
-	command.Env = append(os.Environ(),
+	command.Env = mergeInstallerEnvironment(os.Environ(), append([]string{
 		"GLOSS_INSTALL_TESTING=1",
-		"GLOSS_RELEASE_ROOT="+releaseRoot,
-		"GLOSS_TEST_UNAME_S="+unameS,
-		"GLOSS_TEST_UNAME_M="+unameM,
-		"VERSION="+version,
-		"HOME="+home,
-		"TMPDIR="+tempDir,
-		"INSTALL_DIR="+install,
-		"PATH="+systemPath,
-	)
-	command.Env = append(command.Env, extraEnv...)
+		"GLOSS_RELEASE_ROOT=" + releaseRoot,
+		"GLOSS_TEST_UNAME_S=" + unameS,
+		"GLOSS_TEST_UNAME_M=" + unameM,
+		"VERSION=" + version,
+		"HOME=" + home,
+		"TMPDIR=" + tempDir,
+		"INSTALL_DIR=" + install,
+		"PATH=" + systemPath,
+	}, extraEnv...)...)
 	output, runErr := command.CombinedOutput()
 	return installerRunResult{
 		output:   string(output),
@@ -633,6 +632,32 @@ func runInstallerIntegrationWithOptions(
 		target:   target,
 		original: original,
 	}
+}
+
+func mergeInstallerEnvironment(base []string, overrides ...string) []string {
+	values := make(map[string]string, len(base)+len(overrides))
+	order := make([]string, 0, len(base)+len(overrides))
+	set := func(value string) {
+		key, _, ok := strings.Cut(value, "=")
+		if !ok {
+			return
+		}
+		if _, exists := values[key]; !exists {
+			order = append(order, key)
+		}
+		values[key] = value
+	}
+	for _, value := range base {
+		set(value)
+	}
+	for _, value := range overrides {
+		set(value)
+	}
+	result := make([]string, 0, len(order))
+	for _, key := range order {
+		result = append(result, values[key])
+	}
+	return result
 }
 
 func assertNoInstallerTemps(t *testing.T, result installerRunResult) {
