@@ -105,7 +105,7 @@ func (m *Model) scanView(width int) string {
 			focused := i == m.scanCursor
 			gutter := lipgloss.NewStyle().Width(gutterW).Align(lipgloss.Left).Render("")
 			if focused {
-				gutter = m.styles.FocusedRow.Width(gutterW).Align(lipgloss.Left).Render("›")
+				gutter = m.styles.FocusMarker.Width(gutterW).Align(lipgloss.Left).Render("›")
 			}
 			mark := "[ ]"
 			if row.Selected {
@@ -113,10 +113,17 @@ func (m *Model) scanView(width int) string {
 			}
 			var markCell string
 			if focused {
-				markCell = m.styles.FocusedRow.Bold(true).Width(markW).Render(mark)
+				markStyle := m.styles.FocusedRow.Bold(true)
+				if row.Selected {
+					markStyle = m.styles.FocusMarker
+				}
+				markCell = markStyle.Width(markW).Render(mark)
 			} else {
-				mark = m.styles.Item.Render(mark)
-				markCell = lipgloss.NewStyle().Width(markW).Render(mark)
+				markStyle := m.styles.Item
+				if row.Selected {
+					markStyle = m.styles.CategoryAccent
+				}
+				markCell = markStyle.Width(markW).Render(mark)
 			}
 
 			cmdSt := m.styles.CmdCol

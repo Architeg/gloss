@@ -117,7 +117,7 @@ func (m *Model) aliasListView(width int) string {
 		markerW, commandW, gap, targetW := responsiveColumnWidths(rowWidth, 2, preferredAliasWidth, 8, 8)
 		gutter := lipgloss.NewStyle().Width(markerW).Align(lipgloss.Left).Render("")
 		if focused {
-			gutter = m.styles.FocusedRow.Width(markerW).Align(lipgloss.Left).Render(truncateScanTail("›", markerW))
+			gutter = m.styles.FocusMarker.Width(markerW).Align(lipgloss.Left).Render(truncateScanTail("›", markerW))
 		}
 		cmdSt := m.styles.CmdCol
 		targetSt := m.styles.DescCol

@@ -11,12 +11,16 @@ import (
 	"github.com/Architeg/gloss/internal/model"
 )
 
-var focusedBackgroundANSI = regexp.MustCompile(`48;2;(?:89|90);71;142`)
+var (
+	focusedBackgroundANSI  = regexp.MustCompile(`48;2;(?:68|69);64;100`)
+	obsoleteBackgroundANSI = regexp.MustCompile(`48;2;(?:89|90);71;142`)
+	pinkForegroundANSI     = regexp.MustCompile(`38;2;(?:231|232);120;200`)
+)
 
 func TestFocusedRowPaletteIsCentralized(t *testing.T) {
 	styles := newStyles()
-	wantBackground := lipgloss.Color("#5A478E")
-	wantForeground := lipgloss.Color("#FFFFFF")
+	wantBackground := lipgloss.Color("#454064")
+	wantForeground := lipgloss.Color("#ECE8E2")
 	for name, style := range map[string]lipgloss.Style{
 		"row":         styles.FocusedRow,
 		"command":     styles.CmdSelected,
@@ -28,6 +32,12 @@ func TestFocusedRowPaletteIsCentralized(t *testing.T) {
 		if got := style.GetForeground(); got != wantForeground {
 			t.Fatalf("%s focused foreground = %v, want %v", name, got, wantForeground)
 		}
+	}
+	if got := styles.FocusMarker.GetBackground(); got != wantBackground {
+		t.Fatalf("focus marker background = %v, want %v", got, wantBackground)
+	}
+	if got, want := styles.FocusMarker.GetForeground(), lipgloss.Color("#e878c8"); got != want {
+		t.Fatalf("focus marker foreground = %v, want %v", got, want)
 	}
 	if got := styles.CmdCol.GetBackground(); got == wantBackground {
 		t.Fatal("ordinary command style unexpectedly has the focused background")
@@ -47,6 +57,15 @@ func TestFocusedCommandRowsPreserveStateMarkersAndWrappedWidth(t *testing.T) {
 	m.multiSelected[2] = struct{}{}
 
 	focused := m.renderCommandEntry(76, 0)
+	if obsoleteBackgroundANSI.MatchString(focused) {
+		t.Fatalf("focused command still emits obsolete background: %q", focused)
+	}
+	if !pinkForegroundANSI.MatchString(focused) {
+		t.Fatalf("focused command arrow lost pink accent: %q", focused)
+	}
+	if strings.Contains(stripANSI(focused), "✓") {
+		t.Fatalf("focused but unselected row gained a selection marker: %q", stripANSI(focused))
+	}
 	lines := strings.Split(focused, "\n")
 	if len(lines) < 2 {
 		t.Fatalf("focused row did not wrap for coverage: %q", stripANSI(focused))
@@ -67,11 +86,17 @@ func TestFocusedCommandRowsPreserveStateMarkersAndWrappedWidth(t *testing.T) {
 	if !strings.Contains(stripANSI(unfocusedSelected), "✓") {
 		t.Fatalf("unfocused selected row lost its selection marker: %q", stripANSI(unfocusedSelected))
 	}
+	if !pinkForegroundANSI.MatchString(unfocusedSelected) {
+		t.Fatalf("unfocused selection marker lost pink accent: %q", unfocusedSelected)
+	}
 
 	m.multiSelected[1] = struct{}{}
 	focusedSelected := m.renderCommandEntry(76, 0)
 	if !focusedBackgroundANSI.MatchString(focusedSelected) || !strings.Contains(stripANSI(focusedSelected), "✓") {
 		t.Fatalf("focused selected row lost background or marker: %q", stripANSI(focusedSelected))
+	}
+	if count := len(pinkForegroundANSI.FindAllString(focusedSelected, -1)); count < 2 {
+		t.Fatalf("focused arrow and selection marker are not both pink: %q", focusedSelected)
 	}
 }
 
@@ -87,16 +112,30 @@ func TestAliasAndScanListsUseFocusedRowPalette(t *testing.T) {
 	aliasView := aliases.aliasListView(76)
 	assertFocusedListLine(t, aliasView, "focused_alias", true)
 	assertFocusedListLine(t, aliasView, "ordinary_alias", false)
+	if line := rawLineContaining(aliasView, "focused_alias"); !pinkForegroundANSI.MatchString(line) {
+		t.Fatalf("focused alias arrow lost pink accent: %q", line)
+	}
 
 	scan := New(Options{}).(*Model)
 	scan.scanSources = []string{"temporary source"}
 	scan.scanRows = []model.ScanSuggestion{
-		{Command: "focused-scan", Type: "alias", Target: "target"},
+		{Command: "focused-scan", Type: "alias", Target: "target", Selected: true},
+		{Command: "selected-scan", Type: "alias", Target: "target", Selected: true},
 		{Command: "ordinary-scan", Type: "alias", Target: "target"},
 	}
 	scanView := scan.scanView(76)
 	assertFocusedListLine(t, scanView, "focused-scan", true)
+	assertFocusedListLine(t, scanView, "selected-scan", false)
 	assertFocusedListLine(t, scanView, "ordinary-scan", false)
+	if line := rawLineContaining(scanView, "focused-scan"); len(pinkForegroundANSI.FindAllString(line, -1)) < 2 {
+		t.Fatalf("focused Scan arrow and [x] are not both pink: %q", line)
+	}
+	if line := rawLineContaining(scanView, "selected-scan"); !pinkForegroundANSI.MatchString(line) || focusedBackgroundANSI.MatchString(line) {
+		t.Fatalf("unfocused selected Scan row has wrong state styling: %q", line)
+	}
+	if obsoleteBackgroundANSI.MatchString(aliasView) || obsoleteBackgroundANSI.MatchString(scanView) {
+		t.Fatal("alias or Scan list still emits obsolete focused background")
+	}
 }
 
 func useTrueColor(t *testing.T) {
@@ -121,4 +160,13 @@ func assertFocusedListLine(t *testing.T, rendered, text string, focused bool) {
 		return
 	}
 	t.Fatalf("rendered list omitted %q: %q", text, stripANSI(rendered))
+}
+
+func rawLineContaining(rendered, text string) string {
+	for _, line := range strings.Split(rendered, "\n") {
+		if strings.Contains(stripANSI(line), text) {
+			return line
+		}
+	}
+	return ""
 }

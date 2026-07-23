@@ -413,12 +413,16 @@ func (m *Model) commandRowMarker(width int, active, focused, selected bool) stri
 	selection := strings.Repeat(" ", selectW)
 	if active {
 		if focused {
-			focus = lipgloss.NewStyle().Width(focusW).Render(truncateScanTail("›", focusW))
+			focus = m.styles.FocusMarker.Width(focusW).Render(truncateScanTail("›", focusW))
+		} else {
+			focus = m.styles.FocusedRow.Width(focusW).Render("")
 		}
 		if selected && selectW > 0 {
-			selection = lipgloss.NewStyle().Width(selectW).Render(truncateScanTail("✓", selectW))
+			selection = m.styles.FocusMarker.Width(selectW).Render(truncateScanTail("✓", selectW))
+		} else if selectW > 0 {
+			selection = m.styles.FocusedRow.Width(selectW).Render("")
 		}
-		return m.styles.FocusedRow.Render(focus + selection)
+		return focus + selection
 	}
 	if focused {
 		focus = m.styles.SelCaret.Width(focusW).Render(truncateScanTail("›", focusW))

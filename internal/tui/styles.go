@@ -32,6 +32,7 @@ type Styles struct {
 	CmdCol         lipgloss.Style
 	DescCol        lipgloss.Style
 	FocusedRow     lipgloss.Style
+	FocusMarker    lipgloss.Style
 	CmdSelected    lipgloss.Style
 	DescSelected   lipgloss.Style
 	EmptyHint      lipgloss.Style
@@ -63,8 +64,11 @@ func newStyles() Styles {
 	labelMuted := lipgloss.AdaptiveColor{Light: "#888888", Dark: "#5f636b"}
 	valueBright := lipgloss.AdaptiveColor{Light: "#111111", Dark: "#f4efe9"}
 	focusedRow := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color("#5A478E"))
+		Foreground(lipgloss.Color("#ECE8E2")).
+		Background(lipgloss.Color("#454064"))
+	focusMarker := focusedRow.
+		Foreground(magenta).
+		Bold(true)
 
 	return Styles{
 		Title: lipgloss.NewStyle().
@@ -142,7 +146,8 @@ func newStyles() Styles {
 		DescCol: lipgloss.NewStyle().
 			Foreground(tertiary),
 
-		FocusedRow: focusedRow,
+		FocusedRow:  focusedRow,
+		FocusMarker: focusMarker,
 
 		CmdSelected: focusedRow.
 			Bold(true),
