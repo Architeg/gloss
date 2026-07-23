@@ -843,7 +843,7 @@ main() {
   local release_url="$root/releases/download/$tag"
   local platform_label
   platform_label="$(display_platform "$os" "$arch")"
-  print_activity "Downloading Gloss ${tag#v} for $platform_label…"
+  print_activity "Downloading Gloss ${tag#v} for ${platform_label}…"
   download_bounded "$release_url/checksums.txt" "$checksums" "$MAX_CHECKSUM_BYTES"
   download_bounded "$release_url/$asset" "$archive" "$MAX_ARCHIVE_BYTES"
 
