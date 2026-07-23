@@ -107,7 +107,11 @@ func TestAutomaticUpdateFailureIsQuietAndNotRecorded(t *testing.T) {
 	checker := &fakeAutomaticChecker{err: errors.New("offline")}
 	cmd := automaticUpdateCheckCmd(checker, state, "0.1.0", 24*time.Hour, 20*time.Millisecond, nil)
 	msg := cmd().(automaticUpdateMsg)
-	m := New(Options{}).(*Model)
+	m := New(Options{Config: &model.Config{
+		CheckForUpdates:     true,
+		CheckForUpdatesSet:  true,
+		UpdateCheckInterval: model.UpdateInterval(24 * time.Hour),
+	}}).(*Model)
 	m.errBanner = "useful existing error"
 	m.commandStatus.text = "Copied"
 	_, next := m.Update(msg)
@@ -125,11 +129,15 @@ func TestAutomaticUpdateAvailableNoticeAndHomebrewGuidance(t *testing.T) {
 		homebrew bool
 		want     string
 	}{
-		{name: "manual", want: "run gloss update --install"},
-		{name: "homebrew", homebrew: true, want: update.HomebrewUpgradeCommand},
+		{name: "manual", want: "Update available: v0.2.0 · Run gloss update --install"},
+		{name: "homebrew", homebrew: true, want: "Update available: v0.2.0 · Run " + update.HomebrewUpgradeCommand},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			m := New(Options{}).(*Model)
+			m := New(Options{Config: &model.Config{
+				CheckForUpdates:     true,
+				CheckForUpdatesSet:  true,
+				UpdateCheckInterval: model.UpdateInterval(24 * time.Hour),
+			}}).(*Model)
 			m.allEntries = []model.Entry{{ID: 1, Command: "one", Description: "description"}}
 			m.rebuildBrowse()
 			beforeRows := append([]cmdRow(nil), m.cmdRows...)
@@ -153,7 +161,11 @@ func TestAutomaticUpdateAvailableNoticeAndHomebrewGuidance(t *testing.T) {
 }
 
 func TestAutomaticUpdateNoUpdateIsQuiet(t *testing.T) {
-	m := New(Options{}).(*Model)
+	m := New(Options{Config: &model.Config{
+		CheckForUpdates:     true,
+		CheckForUpdatesSet:  true,
+		UpdateCheckInterval: model.UpdateInterval(24 * time.Hour),
+	}}).(*Model)
 	m.updateNotice = "existing notice"
 	_, cmd := m.Update(automaticUpdateMsg{result: update.CheckResult{LatestVersion: "0.1.0"}})
 	if cmd != nil || m.updateNotice != "existing notice" {

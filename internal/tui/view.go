@@ -61,6 +61,9 @@ func (m *Model) listRowWidth(fallback int) int {
 }
 
 func (m *Model) mainBlock(width int) string {
+	if m.updatePromptVisible {
+		return m.updatePreferenceView(width)
+	}
 	switch m.screen {
 	case ScreenHome:
 		return m.homeView(width)
@@ -152,6 +155,14 @@ func (m *Model) placeholderView(width int) string {
 }
 
 func (m *Model) footerContent() string {
+	if m.updatePromptVisible {
+		return m.renderFooter([]footPart{
+			{key: "←→", label: "Choose"},
+			{key: "Enter", label: "Save"},
+			{key: "Esc", label: "Later"},
+			{key: "Q", label: "Quit"},
+		})
+	}
 	switch m.screen {
 	case ScreenHome:
 		if m.homeSection == homeSectionSupport {
@@ -296,6 +307,12 @@ func (m *Model) footerContent() string {
 		default:
 			return m.renderFooter([]footPart{{key: "Esc", label: "Back"}})
 		}
+	case ScreenSettings:
+		return m.renderFooter([]footPart{
+			{key: "Enter/Space", label: "Toggle"},
+			{key: "Esc", label: "Back"},
+			{key: "Q", label: "Quit"},
+		})
 	default:
 		return m.renderFooter([]footPart{
 			{key: "Esc", label: "Back"},

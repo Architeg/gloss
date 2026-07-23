@@ -22,12 +22,15 @@ func TestLoadCreatesPrivateConfigPaths(t *testing.T) {
 	if cfg.CheckForUpdates || cfg.UpdateCheckInterval.Duration() != 24*time.Hour {
 		t.Fatalf("update defaults = enabled %v interval %s", cfg.CheckForUpdates, cfg.UpdateCheckInterval.Duration())
 	}
+	if cfg.CheckForUpdatesSet {
+		t.Fatal("new config unexpectedly recorded an automatic-update choice")
+	}
 	data, err := os.ReadFile(filepath.Join(home, relConfigDir, relConfigFile))
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(data)
-	if !strings.Contains(text, "check_for_updates: false") || !strings.Contains(text, "update_check_interval: 24h") {
+	if strings.Contains(text, "check_for_updates:") || !strings.Contains(text, "update_check_interval: 24h") {
 		t.Fatalf("generated config lacks update defaults:\n%s", text)
 	}
 	assertMode(t, filepath.Join(home, relConfigDir), 0o700)
@@ -39,11 +42,14 @@ func TestLoadMergesLegacyAndExplicitUpdateSettings(t *testing.T) {
 		name     string
 		config   string
 		enabled  bool
+		decided  bool
 		interval time.Duration
 		wantErr  bool
 	}{
 		{name: "legacy", config: "use_color: true\n", interval: 24 * time.Hour},
-		{name: "explicit", config: "check_for_updates: true\nupdate_check_interval: 48h\n", enabled: true, interval: 48 * time.Hour},
+		{name: "explicit false", config: "check_for_updates: false\n", decided: true, interval: 24 * time.Hour},
+		{name: "explicit true", config: "check_for_updates: true\nupdate_check_interval: 48h\n", enabled: true, decided: true, interval: 48 * time.Hour},
+		{name: "invalid boolean", config: "check_for_updates: null\n", wantErr: true},
 		{name: "invalid", config: "update_check_interval: never\n", wantErr: true},
 		{name: "nonpositive", config: "update_check_interval: 0s\n", wantErr: true},
 	}
@@ -73,11 +79,90 @@ func TestLoadMergesLegacyAndExplicitUpdateSettings(t *testing.T) {
 			if cfg.CheckForUpdates != tt.enabled || cfg.UpdateCheckInterval.Duration() != tt.interval {
 				t.Fatalf("settings = enabled %v interval %s", cfg.CheckForUpdates, cfg.UpdateCheckInterval.Duration())
 			}
+			if cfg.CheckForUpdatesSet != tt.decided {
+				t.Fatalf("choice presence = %v, want %v", cfg.CheckForUpdatesSet, tt.decided)
+			}
 			unchanged, err := os.ReadFile(path)
 			if err != nil || string(unchanged) != tt.config {
 				t.Fatalf("existing config was rewritten: %q, %v", unchanged, err)
 			}
 		})
+	}
+}
+
+func TestSaveCheckForUpdatesPreservesUnrelatedConfig(t *testing.T) {
+	for _, enabled := range []bool{true, false} {
+		t.Run(map[bool]string{true: "enable", false: "not now"}[enabled], func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("SHELL", "/bin/zsh")
+			dir := filepath.Join(home, relConfigDir)
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(dir, relConfigFile)
+			original := "# keep this comment\nuse_color: false\ncustom_option: preserved\nupdate_check_interval: 48h\n"
+			if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.CheckForUpdatesSet {
+				t.Fatal("legacy config was already decided")
+			}
+			if err := SaveCheckForUpdates(enabled); err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			text := string(data)
+			if !strings.Contains(text, "# keep this comment") ||
+				!strings.Contains(text, "custom_option: preserved") ||
+				!strings.Contains(text, "use_color: false") ||
+				!strings.Contains(text, "update_check_interval: 48h") ||
+				!strings.Contains(text, "check_for_updates: "+map[bool]string{true: "true", false: "false"}[enabled]) {
+				t.Fatalf("saved config lost content:\n%s", text)
+			}
+			reloaded, err := Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reloaded.CheckForUpdatesSet || reloaded.CheckForUpdates != enabled {
+				t.Fatalf("reloaded preference = set %v enabled %v", reloaded.CheckForUpdatesSet, reloaded.CheckForUpdates)
+			}
+			assertMode(t, path, 0o600)
+		})
+	}
+}
+
+func TestSaveCheckForUpdatesRejectsSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink behavior differs on Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	dir := filepath.Join(home, relConfigDir)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(t.TempDir(), "config.yaml")
+	original := []byte("use_color: true\n")
+	if err := os.WriteFile(target, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(dir, relConfigFile)); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if err := SaveCheckForUpdates(true); err == nil {
+		t.Fatal("SaveCheckForUpdates accepted a symlink config")
+	}
+	data, err := os.ReadFile(target)
+	if err != nil || string(data) != string(original) {
+		t.Fatalf("symlink target changed: %q, %v", data, err)
 	}
 }
 

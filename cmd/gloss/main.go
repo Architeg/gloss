@@ -113,13 +113,14 @@ func main() {
 
 	p := tea.NewProgram(
 		tui.New(tui.Options{
-			Config:              cfg,
-			Repo:                repo,
-			UpdateChecker:       update.NewClient(&http.Client{Timeout: 10 * time.Second}),
-			Version:             appVersion,
-			UpdateState:         update.StateStore{Path: filepath.Join(cfg.StoragePath, "update-state.json")},
-			InspectUpdateLayout: inspectUpdateExecutable,
-			UpdateTimeout:       10 * time.Second,
+			Config:               cfg,
+			Repo:                 repo,
+			UpdateChecker:        update.NewClient(&http.Client{Timeout: 10 * time.Second}),
+			Version:              appVersion,
+			UpdateState:          update.StateStore{Path: filepath.Join(cfg.StoragePath, "update-state.json")},
+			InspectUpdateLayout:  inspectUpdateExecutable,
+			UpdateTimeout:        10 * time.Second,
+			SaveUpdatePreference: config.SaveCheckForUpdates,
 		}),
 		tea.WithAltScreen(),
 	)

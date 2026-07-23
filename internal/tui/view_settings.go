@@ -3,6 +3,8 @@ package tui
 import (
 	"path/filepath"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 func (m *Model) settingsView(width int) string {
@@ -16,6 +18,34 @@ func (m *Model) settingsView(width int) string {
 		b.WriteString(m.styles.EmptyHint.Width(width).Render("No configuration loaded."))
 		return b.String()
 	}
+
+	caret := m.styles.SelCaret.Render("›")
+	labelText := "Automatic update checks"
+	label := m.styles.FieldLabel.Render(labelText)
+	value := m.styles.FieldValue.Render(updateSettingLabel(cfg.CheckForUpdates))
+	row := lipgloss.JoinHorizontal(lipgloss.Top, caret, " ", label, "    ", value)
+	if width <= 0 {
+		row = ""
+	} else if lipgloss.Width(row) > width {
+		labelWidth := max(width-lipgloss.Width(caret)-1, 0)
+		row = lipgloss.JoinVertical(
+			lipgloss.Left,
+			lipgloss.JoinHorizontal(lipgloss.Top, caret, " ", m.styles.FieldLabel.Width(labelWidth).Render(labelText)),
+			m.styles.FieldValue.Width(width).Render(updateSettingLabel(cfg.CheckForUpdates)),
+		)
+	}
+	b.WriteString(row)
+	if m.updatePreferenceSaving && m.updatePreferenceSource == updatePreferenceSettings {
+		b.WriteString("\n")
+		b.WriteString(m.styles.EmptyHint.Render("Saving…"))
+	}
+	b.WriteString("\n")
+	b.WriteString(m.updatePreferenceDescription(width))
+	if status := m.updatePreferenceStatus(width); status != "" {
+		b.WriteString("\n")
+		b.WriteString(status)
+	}
+	b.WriteString("\n\n")
 
 	b.WriteString(m.styles.FieldLabel.Render("Shell file"))
 	b.WriteString("\n")

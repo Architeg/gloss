@@ -59,7 +59,7 @@ func placeholderBlurb(s Screen) string {
 	case ScreenAliases:
 		return "Manage aliases and sync to zshrc"
 	case ScreenSettings:
-		return "Configure shell file and storage paths"
+		return "Configure update checks and paths"
 	case ScreenReadme:
 		return "Open docs in browser"
 	default:

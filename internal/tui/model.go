@@ -25,14 +25,15 @@ type updateChecker interface {
 
 // Options carries dependencies created during app bootstrap.
 type Options struct {
-	Config              *model.Config
-	Repo                *storage.EntryRepo
-	Clipboard           clipboard.Writer
-	UpdateChecker       updateChecker
-	Version             string
-	UpdateState         update.StateStore
-	InspectUpdateLayout func() (update.Layout, error)
-	UpdateTimeout       time.Duration
+	Config               *model.Config
+	Repo                 *storage.EntryRepo
+	Clipboard            clipboard.Writer
+	UpdateChecker        updateChecker
+	Version              string
+	UpdateState          update.StateStore
+	InspectUpdateLayout  func() (update.Layout, error)
+	UpdateTimeout        time.Duration
+	SaveUpdatePreference func(bool) error
 }
 
 // Model is the root Bubble Tea model for Gloss.
@@ -54,14 +55,23 @@ type Model struct {
 	allEntries []model.Entry
 	errBanner  string
 
-	updateChecker       updateChecker
-	version             string
-	updateState         update.StateStore
-	inspectUpdateLayout func() (update.Layout, error)
-	updateTimeout       time.Duration
-	updateCheckStarted  bool
-	updateCheckFinished bool
-	updateNotice        string
+	updateChecker           updateChecker
+	version                 string
+	updateState             update.StateStore
+	inspectUpdateLayout     func() (update.Layout, error)
+	updateTimeout           time.Duration
+	updateCheckStarted      bool
+	updateCheckFinished     bool
+	updateNotice            string
+	saveUpdatePreference    func(bool) error
+	updatePromptVisible     bool
+	updatePromptCursor      int
+	updatePreferenceSaving  bool
+	updatePreferencePending bool
+	updatePreferenceSource  updatePreferenceSource
+	updatePreferenceError   string
+	settingsStatus          string
+	settingsStatusError     bool
 
 	cmdPhase          commandsPhase
 	cmdFocus          commandsFocus
@@ -121,24 +131,28 @@ func New(opts Options) tea.Model {
 	tag.Blur()
 
 	m := &Model{
-		styles:              newStyles(),
-		keys:                newBindings(),
-		screen:              ScreenHome,
-		config:              opts.Config,
-		repo:                opts.Repo,
-		clip:                opts.Clipboard,
-		searchTI:            search,
-		tagTI:               tag,
-		form:                newFormState(cw),
-		aliasForm:           newAliasFormState(cw),
-		bulkTagForm:         newBulkTagFormState(cw),
-		multiSelected:       make(map[int64]struct{}),
-		updateChecker:       opts.UpdateChecker,
-		version:             version,
-		updateState:         opts.UpdateState,
-		inspectUpdateLayout: opts.InspectUpdateLayout,
-		updateTimeout:       opts.UpdateTimeout,
+		styles:               newStyles(),
+		keys:                 newBindings(),
+		screen:               ScreenHome,
+		config:               opts.Config,
+		repo:                 opts.Repo,
+		clip:                 opts.Clipboard,
+		searchTI:             search,
+		tagTI:                tag,
+		form:                 newFormState(cw),
+		aliasForm:            newAliasFormState(cw),
+		bulkTagForm:          newBulkTagFormState(cw),
+		multiSelected:        make(map[int64]struct{}),
+		updateChecker:        opts.UpdateChecker,
+		version:              version,
+		updateState:          opts.UpdateState,
+		inspectUpdateLayout:  opts.InspectUpdateLayout,
+		updateTimeout:        opts.UpdateTimeout,
+		saveUpdatePreference: opts.SaveUpdatePreference,
 	}
+	m.updatePromptVisible = m.config != nil &&
+		!m.config.CheckForUpdatesSet &&
+		m.saveUpdatePreference != nil
 	if m.clip == nil {
 		m.clip = clipboard.System{}
 	}
@@ -175,15 +189,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case automaticUpdateMsg:
 		m.updateCheckFinished = true
+		if m.config == nil || !m.config.CheckForUpdates ||
+			(m.updatePreferenceSaving && !m.updatePreferencePending) {
+			return m, nil
+		}
 		if msg.err != nil || msg.skipped || !msg.result.UpdateAvailable {
 			return m, nil
 		}
+		latest := buildinfo.Display(msg.result.LatestVersion)
 		if msg.homebrew {
-			m.updateNotice = "Gloss " + msg.result.LatestVersion + " is available — " + update.HomebrewUpgradeCommand
+			m.updateNotice = "Update available: " + latest + " · Run " + update.HomebrewUpgradeCommand
 		} else {
-			m.updateNotice = "Gloss " + msg.result.LatestVersion + " is available — run gloss update --install"
+			m.updateNotice = "Update available: " + latest + " · Run gloss update --install"
 		}
 		return m, nil
+
+	case updatePreferenceSavedMsg:
+		return m.handleUpdatePreferenceSaved(msg)
 
 	case entriesMsg:
 		if msg.err != nil {
@@ -319,6 +341,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.errBanner = ""
 		}
 		return m, nil
+	}
+
+	if m.updatePromptVisible {
+		return m.updateUpdatePreferencePrompt(msg)
 	}
 
 	switch m.screen {
@@ -514,6 +540,8 @@ func (m *Model) updateHome(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, loadEntriesCmd(m.repo)
 		case ScreenSettings:
 			m.errBanner = ""
+			m.settingsStatus = ""
+			m.settingsStatusError = false
 		}
 	}
 	return m, nil
@@ -584,7 +612,23 @@ func (m *Model) updatePlaceholder(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) updateSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
-	return m.updatePlaceholder(msg)
+	km, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return m, nil
+	}
+	switch {
+	case m.keys.shouldQuit(km):
+		return m, tea.Quit
+	case m.keys.shouldBack(km):
+		m.screen = ScreenHome
+		return m, nil
+	case km.Type == tea.KeySpace || key.Matches(km, m.keys.Enter):
+		if m.config == nil || m.updatePreferenceSaving {
+			return m, nil
+		}
+		return m, m.beginUpdatePreferenceSave(!m.config.CheckForUpdates, updatePreferenceSettings)
+	}
+	return m, nil
 }
 
 func (m *Model) updateCommands(msg tea.Msg) (tea.Model, tea.Cmd) {

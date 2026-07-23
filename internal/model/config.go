@@ -43,6 +43,7 @@ type Config struct {
 	StoragePath         string         `yaml:"storage_path"`
 	ScanPaths           []string       `yaml:"scan_paths"`
 	UseColor            bool           `yaml:"use_color"`
-	CheckForUpdates     bool           `yaml:"check_for_updates"`
+	CheckForUpdates     bool           `yaml:"check_for_updates,omitempty"`
+	CheckForUpdatesSet  bool           `yaml:"-"`
 	UpdateCheckInterval UpdateInterval `yaml:"update_check_interval"`
 }
