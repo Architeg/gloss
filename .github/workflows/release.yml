@@ -71,8 +71,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+
+          releases="$RUNNER_TEMP/releases-before-create.json"
+          existing_ids="$RUNNER_TEMP/existing-release-ids.txt"
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/releases?per_page=100" > "$releases"
+          jq -r --arg tag "$GITHUB_REF_NAME" \
+            '.[][] | select(.tag_name == $tag) | .id' \
+            "$releases" > "$existing_ids"
+
+          mapfile -t matches < "$existing_ids"
+          if ((${#matches[@]} != 0)); then
             echo "Release $GITHUB_REF_NAME already exists; refusing to replace it" >&2
+            printf 'Matching release ID: %s\n' "${matches[@]}" >&2
             exit 1
           fi
 
@@ -94,6 +105,28 @@ jobs:
             --title "Gloss $GITHUB_REF_NAME" \
             --generate-notes
 
+          releases="$RUNNER_TEMP/releases-after-create.json"
+          draft_ids="$RUNNER_TEMP/draft-release-ids.txt"
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/releases?per_page=100" > "$releases"
+          jq -r --arg tag "$GITHUB_REF_NAME" \
+            '.[][] | select(.tag_name == $tag and .draft == true) | .id' \
+            "$releases" > "$draft_ids"
+
+          mapfile -t matches < "$draft_ids"
+          if ((${#matches[@]} != 1)); then
+            echo "Expected exactly one draft release for $GITHUB_REF_NAME; found ${#matches[@]}" >&2
+            if ((${#matches[@]} > 0)); then
+              printf 'Matching draft release ID: %s\n' "${matches[@]}" >&2
+            fi
+            exit 1
+          fi
+          release_id="${matches[0]}"
+          if [[ ! "$release_id" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Draft release ID is not a positive integer: $release_id" >&2
+            exit 1
+          fi
+
           expected="$RUNNER_TEMP/expected-assets.txt"
           actual="$RUNNER_TEMP/actual-assets.txt"
           printf '%s\n' \
@@ -103,15 +136,28 @@ jobs:
             gloss-linux-amd64.zip \
             gloss-linux-arm64.zip > "$expected"
           gh api \
-            "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" \
+            "repos/$GITHUB_REPOSITORY/releases/$release_id" \
             --jq '.assets[].name' | sort > "$actual"
           if ! cmp -s "$expected" "$actual"; then
             echo "Draft release asset set is incomplete or unexpected" >&2
             diff -u "$expected" "$actual" >&2 || true
             exit 1
           fi
+          echo "RELEASE_ID=$release_id" >> "$GITHUB_ENV"
 
       - name: Publish verified release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Verified release ID is missing or invalid: ${RELEASE_ID:-<empty>}" >&2
+            exit 1
+          fi
+          gh api \
+            --method PATCH \
+            "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            -F draft=false \
+            -f make_latest=true \
+            --jq '.id'
