@@ -51,9 +51,6 @@ func (m *Model) aliasMenuView(width int) string {
 			gap = m.styles.FocusedRow.Render(gap)
 		}
 		line := lipgloss.JoinHorizontal(lipgloss.Top, gutter, labelSt.Render(item.title), gap, descSt.Render(item.desc))
-		if focused {
-			line = normalizeFocusedTrueColor(line)
-		}
 		b.WriteString(lipgloss.NewStyle().Width(width).Render(line))
 		if i < len(aliasMenuHome)-1 {
 			b.WriteString("\n")
@@ -143,9 +140,6 @@ func (m *Model) aliasListView(width int) string {
 			parts = append(parts, gapCell, targetSt.Width(targetW).Render(truncateScanTail(e.Target, targetW)))
 		}
 		line := lipgloss.JoinHorizontal(lipgloss.Top, parts...)
-		if focused {
-			line = normalizeFocusedTrueColor(line)
-		}
 		b.WriteString(line)
 		if i < len(rows)-1 {
 			b.WriteString("\n\n")

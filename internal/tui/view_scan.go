@@ -156,9 +156,6 @@ func (m *Model) scanView(width int) string {
 				gapCell,
 				detailCell,
 			)
-			if focused {
-				line = normalizeFocusedTrueColor(line)
-			}
 			b.WriteString(lipgloss.NewStyle().Width(width).Render(line))
 			if i < len(m.scanRows)-1 {
 				b.WriteString("\n")

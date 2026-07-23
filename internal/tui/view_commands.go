@@ -394,9 +394,6 @@ func (m *Model) renderCommandEntry(width, index int) string {
 			parts = append(parts, gapCell, descCell)
 		}
 		line := lipgloss.JoinHorizontal(lipgloss.Top, parts...)
-		if focused {
-			line = normalizeFocusedTrueColor(line)
-		}
 		b.WriteString(line)
 
 		if lineIdx < rowHeight-1 {

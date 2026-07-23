@@ -1,10 +1,6 @@
 package tui
 
-import (
-	"strings"
-
-	"github.com/charmbracelet/lipgloss"
-)
+import "github.com/charmbracelet/lipgloss"
 
 const maxBodyWidth = 76
 
@@ -67,9 +63,19 @@ func newStyles() Styles {
 	dim := lipgloss.AdaptiveColor{Light: "#999999", Dark: "#61646b"}
 	labelMuted := lipgloss.AdaptiveColor{Light: "#888888", Dark: "#5f636b"}
 	valueBright := lipgloss.AdaptiveColor{Light: "#111111", Dark: "#f4efe9"}
+	focusedBackground := lipgloss.CompleteColor{
+		TrueColor: "#5F5F87",
+		ANSI256:   "60",
+		ANSI:      "5",
+	}
+	focusedForeground := lipgloss.CompleteColor{
+		TrueColor: "#ECE8E2",
+		ANSI256:   "254",
+		ANSI:      "7",
+	}
 	focusedRow := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#ECE8E2")).
-		Background(lipgloss.Color("#454064"))
+		Foreground(focusedForeground).
+		Background(focusedBackground)
 	focusMarker := focusedRow.
 		Foreground(magenta).
 		Bold(true)
@@ -187,13 +193,6 @@ func newStyles() Styles {
 		FooterBar: lipgloss.NewStyle().
 			Foreground(lipgloss.AdaptiveColor{Light: "#c8c8c8", Dark: "#50555d"}),
 	}
-}
-
-// normalizeFocusedTrueColor corrects termenv v0.16's one-channel flooring of
-// #454064 so true-color terminals receive the requested RGB 69,64,100. Other
-// color profiles do not contain this sequence and pass through unchanged.
-func normalizeFocusedTrueColor(rendered string) string {
-	return strings.ReplaceAll(rendered, "48;2;68;64;100", "48;2;69;64;100")
 }
 
 func contentWidth(termWidth int) int {

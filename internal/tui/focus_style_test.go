@@ -2,6 +2,7 @@ package tui
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -12,17 +13,17 @@ import (
 )
 
 var (
-	focusedBackgroundANSI   = regexp.MustCompile(`48;2;69;64;100`)
-	quantizedBackgroundANSI = regexp.MustCompile(`48;2;68;64;100`)
-	obsoleteBackgroundANSI  = regexp.MustCompile(`48;2;(?:89|90);71;142`)
-	pinkForegroundANSI      = regexp.MustCompile(`38;2;232;120;200`)
-	neutralForegroundANSI   = regexp.MustCompile(`38;2;236;232;226`)
+	focusedBackgroundANSI = regexp.MustCompile(`48;5;60`)
+	grayBackgroundANSI    = regexp.MustCompile(`48;5;59`)
+	pinkForegroundANSI    = regexp.MustCompile(`38;5;176`)
+	neutralForegroundANSI = regexp.MustCompile(`38;5;254`)
+	sgrANSI               = regexp.MustCompile(`\x1b\[([0-9;]*)m`)
 )
 
 func TestFocusedRowPaletteIsCentralized(t *testing.T) {
 	styles := newStyles()
-	wantBackground := lipgloss.Color("#454064")
-	wantForeground := lipgloss.Color("#ECE8E2")
+	wantBackground := lipgloss.CompleteColor{TrueColor: "#5F5F87", ANSI256: "60", ANSI: "5"}
+	wantForeground := lipgloss.CompleteColor{TrueColor: "#ECE8E2", ANSI256: "254", ANSI: "7"}
 	for name, style := range map[string]lipgloss.Style{
 		"row":         styles.FocusedRow,
 		"command":     styles.CmdSelected,
@@ -49,8 +50,32 @@ func TestFocusedRowPaletteIsCentralized(t *testing.T) {
 	}
 }
 
+func TestFocusedRowUsesExplicitProfileColors(t *testing.T) {
+	styles := newStyles()
+	for _, tt := range []struct {
+		name       string
+		profile    termenv.Profile
+		background string
+		foreground string
+	}{
+		{name: "ANSI256", profile: termenv.ANSI256, background: "48;5;60", foreground: "38;5;254"},
+		{name: "TrueColor", profile: termenv.TrueColor, background: "48;2;95;95;135", foreground: "38;2;236;232;226"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			useColorProfile(t, tt.profile)
+			rendered := styles.FocusedRow.Render("focused")
+			if !strings.Contains(rendered, tt.background) {
+				t.Fatalf("focused background = %q, want sequence containing %q", rendered, tt.background)
+			}
+			if !strings.Contains(rendered, tt.foreground) {
+				t.Fatalf("focused foreground = %q, want sequence containing %q", rendered, tt.foreground)
+			}
+		})
+	}
+}
+
 func TestFocusedCommandRowsPreserveStateMarkersAndWrappedWidth(t *testing.T) {
-	useTrueColor(t)
+	useANSI256(t)
 	entries := []model.Entry{
 		{ID: 1, Command: strings.Repeat("focused command ", 5), Description: strings.Repeat("focused description ", 6), Tags: []string{"Category"}},
 		{ID: 2, Command: strings.Repeat("ordinary command ", 5), Description: strings.Repeat("ordinary description ", 6), Tags: []string{"Category"}},
@@ -59,11 +84,8 @@ func TestFocusedCommandRowsPreserveStateMarkersAndWrappedWidth(t *testing.T) {
 	m.multiSelected[2] = struct{}{}
 
 	focused := m.renderCommandEntry(76, 0)
-	if obsoleteBackgroundANSI.MatchString(focused) {
-		t.Fatalf("focused command still emits obsolete background: %q", focused)
-	}
-	if quantizedBackgroundANSI.MatchString(focused) {
-		t.Fatalf("focused command emitted quantized background instead of RGB 69,64,100: %q", focused)
+	if grayBackgroundANSI.MatchString(focused) {
+		t.Fatalf("focused command emitted gray background index 59: %q", focused)
 	}
 	if !pinkForegroundANSI.MatchString(focused) {
 		t.Fatalf("focused command arrow lost pink accent: %q", focused)
@@ -85,13 +107,14 @@ func TestFocusedCommandRowsPreserveStateMarkersAndWrappedWidth(t *testing.T) {
 		if !focusedBackgroundANSI.MatchString(line) {
 			t.Fatalf("wrapped focused line lacks active background: %q", line)
 		}
+		assertIndexedBackgroundExtent(t, line, 60, 76)
 		if got := lipgloss.Width(line); got > 76 {
 			t.Fatalf("ANSI-styled focused line width %d exceeds 76: %q", got, line)
 		}
 	}
 
 	unfocusedSelected := m.renderCommandEntry(76, 1)
-	if focusedBackgroundANSI.MatchString(unfocusedSelected) || quantizedBackgroundANSI.MatchString(unfocusedSelected) {
+	if focusedBackgroundANSI.MatchString(unfocusedSelected) || grayBackgroundANSI.MatchString(unfocusedSelected) {
 		t.Fatalf("unfocused selected row received focused background: %q", unfocusedSelected)
 	}
 	if !strings.Contains(stripANSI(unfocusedSelected), "✓") {
@@ -112,7 +135,7 @@ func TestFocusedCommandRowsPreserveStateMarkersAndWrappedWidth(t *testing.T) {
 }
 
 func TestAliasAndScanListsUseFocusedRowPalette(t *testing.T) {
-	useTrueColor(t)
+	useANSI256(t)
 
 	aliases := New(Options{}).(*Model)
 	aliases.config = &model.Config{ShellFile: "/tmp/gloss-focus-test-shell"}
@@ -126,6 +149,8 @@ func TestAliasAndScanListsUseFocusedRowPalette(t *testing.T) {
 	assertFocusedListLine(t, aliasView, "ordinary_alias", false)
 	if line := rawLineContaining(aliasView, "focused_alias"); len(pinkForegroundANSI.FindAllString(line, -1)) != 1 || !neutralForegroundANSI.MatchString(line) {
 		t.Fatalf("focused managed alias does not use pink arrow plus neutral text: %q", line)
+	} else {
+		assertIndexedBackgroundExtent(t, line, 60, 76)
 	}
 	aliases.aliasPhase = aliasPhaseMenu
 	aliasMenu := aliases.aliasMenuView(76)
@@ -148,36 +173,78 @@ func TestAliasAndScanListsUseFocusedRowPalette(t *testing.T) {
 	assertFocusedListLine(t, scanView, "ordinary-scan", false)
 	if line := rawLineContaining(scanView, "focused-scan"); len(pinkForegroundANSI.FindAllString(line, -1)) != 2 || !neutralForegroundANSI.MatchString(line) {
 		t.Fatalf("focused Scan row lacks pink indicators or neutral text: %q", line)
+	} else {
+		assertIndexedBackgroundExtent(t, line, 60, 76)
 	}
-	if line := rawLineContaining(scanView, "selected-scan"); !pinkForegroundANSI.MatchString(line) || focusedBackgroundANSI.MatchString(line) {
+	if line := rawLineContaining(scanView, "selected-scan"); !pinkForegroundANSI.MatchString(line) || focusedBackgroundANSI.MatchString(line) || grayBackgroundANSI.MatchString(line) {
 		t.Fatalf("unfocused selected Scan row has wrong state styling: %q", line)
 	}
 	scan.scanCursor = 2
 	focusedUnselectedScan := scan.scanView(76)
-	if line := rawLineContaining(focusedUnselectedScan, "ordinary-scan"); !focusedBackgroundANSI.MatchString(line) || quantizedBackgroundANSI.MatchString(line) || len(pinkForegroundANSI.FindAllString(line, -1)) != 1 || !neutralForegroundANSI.MatchString(line) || strings.Contains(stripANSI(line), "[x]") {
+	if line := rawLineContaining(focusedUnselectedScan, "ordinary-scan"); !focusedBackgroundANSI.MatchString(line) || grayBackgroundANSI.MatchString(line) || len(pinkForegroundANSI.FindAllString(line, -1)) != 1 || !neutralForegroundANSI.MatchString(line) || strings.Contains(stripANSI(line), "[x]") {
 		t.Fatalf("focused but unselected Scan row has wrong state styling: %q", line)
 	}
-	if line := rawLineContaining(focusedUnselectedScan, "focused-scan"); focusedBackgroundANSI.MatchString(line) || quantizedBackgroundANSI.MatchString(line) || !pinkForegroundANSI.MatchString(line) {
+	if line := rawLineContaining(focusedUnselectedScan, "focused-scan"); focusedBackgroundANSI.MatchString(line) || grayBackgroundANSI.MatchString(line) || !pinkForegroundANSI.MatchString(line) {
 		t.Fatalf("selected but unfocused Scan row has wrong state styling after moving focus: %q", line)
 	}
-	if obsoleteBackgroundANSI.MatchString(aliasView) || obsoleteBackgroundANSI.MatchString(aliasMenu) || obsoleteBackgroundANSI.MatchString(scanView) {
-		t.Fatal("alias or Scan list still emits obsolete focused background")
-	}
 	for name, rendered := range map[string]string{"aliases": aliasView, "alias menu": aliasMenu, "scan": scanView, "unselected scan focus": focusedUnselectedScan} {
-		if quantizedBackgroundANSI.MatchString(rendered) {
-			t.Fatalf("%s emitted quantized focused background RGB 68,64,100: %q", name, rendered)
-		}
-		if strings.Contains(rendered, "48;5;") {
-			t.Fatalf("%s emitted an ANSI256 background under true-color profile: %q", name, rendered)
+		if grayBackgroundANSI.MatchString(rendered) {
+			t.Fatalf("%s emitted gray focused background index 59: %q", name, rendered)
 		}
 	}
 }
 
-func useTrueColor(t *testing.T) {
+func useANSI256(t *testing.T) {
+	useColorProfile(t, termenv.ANSI256)
+}
+
+func useColorProfile(t *testing.T, profile termenv.Profile) {
 	t.Helper()
 	previous := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
+	lipgloss.SetColorProfile(profile)
 	t.Cleanup(func() { lipgloss.SetColorProfile(previous) })
+}
+
+func assertIndexedBackgroundExtent(t *testing.T, line string, index, wantWidth int) {
+	t.Helper()
+	currentBackground := -1
+	position := 0
+	covered := 0
+	for _, location := range sgrANSI.FindAllStringSubmatchIndex(line, -1) {
+		text := line[position:location[0]]
+		width := lipgloss.Width(text)
+		if width > 0 && currentBackground != index {
+			t.Fatalf("line has %d cells without background index %d: %q", width, index, line)
+		}
+		covered += width
+		currentBackground = sgrBackground(line[location[2]:location[3]], currentBackground)
+		position = location[1]
+	}
+	text := line[position:]
+	width := lipgloss.Width(text)
+	if width > 0 && currentBackground != index {
+		t.Fatalf("line ends with %d cells without background index %d: %q", width, index, line)
+	}
+	covered += width
+	if covered != wantWidth || lipgloss.Width(line) != wantWidth {
+		t.Fatalf("focused background width = %d (visual %d), want %d", covered, lipgloss.Width(line), wantWidth)
+	}
+}
+
+func sgrBackground(sequence string, current int) int {
+	parts := strings.Split(sequence, ";")
+	for i := 0; i < len(parts); i++ {
+		if parts[i] == "0" {
+			current = -1
+		}
+		if parts[i] == "48" && i+2 < len(parts) && parts[i+1] == "5" {
+			if value, err := strconv.Atoi(parts[i+2]); err == nil {
+				current = value
+			}
+			i += 2
+		}
+	}
+	return current
 }
 
 func assertFocusedListLine(t *testing.T, rendered, text string, focused bool) {
