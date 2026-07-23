@@ -24,14 +24,19 @@
   </a>
 </p>
 
-<!-- Featured badges-->
+<!-- Featured badges -->
 
 <p align="center">
   <a href="https://www.uneed.best/tool/gloss">
     <img src="https://www.uneed.best/EMBED1B.png" alt="Published on Uneed" height="44" />
   </a>
+
   <a href="https://www.producthunt.com/products/gloss?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-gloss">
     <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1138925&theme=dark&t=1777916961103" alt="Gloss - A command glossary for your terminal | Product Hunt" height="40" />
+  </a>
+
+  <a href="https://devhunt.org/tool/gloss">
+    <img src="https://worksfine.dev/images/badges/devhunt.svg" alt="Featured on DevHunt" height="40" />
   </a>
 </p>
 
