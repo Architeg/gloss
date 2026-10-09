@@ -10,6 +10,12 @@
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-2f855a"/>
   <img alt="Version" src="https://img.shields.io/badge/version-v0.1.1-111827"/>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-2563eb"/>
+  <a href="https://github.com/Architeg/gloss/releases">
+  <img
+    alt="GitHub release downloads"
+    src="https://img.shields.io/github/downloads/Architeg/gloss/total?label=Downloads&style=flat"
+  />
+  </a>
   <a href="https://github.com/Architeg/gloss/stargazers">
     <img alt="GitHub stars" src="https://img.shields.io/github/stars/Architeg/gloss?label=Stars&style=flat" />
   </a>
